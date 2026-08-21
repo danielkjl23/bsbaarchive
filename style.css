@@ -1,0 +1,142 @@
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-start: #f8fafc;
+  --bg-mid: #ffffff;
+  --bg-end: #f1f5f9;
+  --card-bg: #ffffff;
+  --card-border: rgba(226, 232, 240, 0.8);
+  --text-900: #0f172a;
+  --text-600: #475569;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: linear-gradient(135deg, var(--bg-start), var(--bg-mid), var(--bg-end));
+  color: var(--text-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 64rem;
+}
+
+@media (max-width: 900px) {
+  .cards {
+    grid-template-columns: 1fr;
+    max-width: 24rem;
+  }
+}
+
+.card {
+  position: relative;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  padding: 2.5rem 2rem;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+.card-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-icon--blue {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+}
+.card-icon--green {
+  background: linear-gradient(135deg, #10b981, #0d9488);
+}
+.card-icon--amber {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+}
+
+.card[data-module='sales']:hover {
+  box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
+}
+.card[data-module='sales']::before {
+  background: linear-gradient(90deg, #0ea5e9, #2563eb);
+}
+
+.card[data-module='entrepreneurial']:hover {
+  box-shadow: 0 20px 40px rgba(16, 185, 129, 0.18);
+}
+.card[data-module='entrepreneurial']::before {
+  background: linear-gradient(90deg, #10b981, #0d9488);
+}
+
+.card[data-module='product']:hover {
+  box-shadow: 0 20px 40px rgba(245, 158, 11, 0.18);
+}
+.card[data-module='product']::before {
+  background: linear-gradient(90deg, #f59e0b, #ea580c);
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.5rem;
+}
+
+.card-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-900);
+  transition: gap 0.3s ease;
+}
+
+.card:hover .card-link {
+  gap: 0.85rem;
+}
