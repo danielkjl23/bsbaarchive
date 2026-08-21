@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chapter</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="aura-bg">
+      <div class="aura-layer-1" aria-hidden="true"></div>
+      <div class="aura-layer-2" aria-hidden="true"></div>
+      <div class="aura-layer-3" aria-hidden="true"></div>
+      <div class="aura-layer-4" aria-hidden="true"></div>
+      <div class="aura-content">
+        <div class="page page--top">
+          <a href="index.html" class="back-link" id="backLink">&larr; Back</a>
+          <p class="chapter-meta" id="chapterMeta"></p>
+          <h1 class="page-title" id="chapterHeading">Chapter</h1>
+
+          <div class="chapter-content-wrap">
+            <div
+              class="chapter-content"
+              id="chapterContent"
+              contenteditable="true"
+              data-placeholder="Type or paste this chapter's content here..."
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ---- Read module/chapter/color from the URL ----
+      const params = new URLSearchParams(window.location.search);
+      const moduleKey = params.get('module') || '';
+      const num = params.get('num') || '1';
+      const color = params.get('color') || 'blue';
+      const moduleTitle = params.get('moduleTitle') || 'Archives';
+
+      const ACCENTS = { blue: '#38bdf8', green: '#34d399', amber: '#fbbf24' };
+      document.documentElement.style.setProperty('--accent', ACCENTS[color] || ACCENTS.blue);
+
+      document.getElementById('chapterHeading').textContent = `Chapter ${num}`;
+      document.getElementById('chapterMeta').textContent = moduleTitle;
+      const backLink = document.getElementById('backLink');
+      backLink.textContent = `\u2190 Back to ${moduleTitle}`;
+      backLink.href = moduleKey ? `${moduleKey}.html` : 'index.html';
+      document.title = `Chapter ${num} \u2014 ${moduleTitle}`;
+
+      // ---- Text formatting ----
+      const HIGHLIGHT_COLOR = '#00e5ff'; // sampled from the provided swatch
+      const content = document.getElementById('chapterContent');
+
+      function applyBold() {
+        content.focus();
+        document.execCommand('bold');
+      }
+
+      function applyUnderline() {
+        content.focus();
+        document.execCommand('underline');
+      }
+
+      function applyHighlight() {
+        content.focus();
+        const ok = document.execCommand('hiliteColor', false, HIGHLIGHT_COLOR);
+        if (!ok) {
+          document.execCommand('backColor', false, HIGHLIGHT_COLOR);
+        }
+      }
+
+      // ---- Download this chapter as a Word (.doc) file ----
+      // Uses Word's HTML import format so styling (bold/underline/highlight),
+      // the Times New Roman 8pt font, and the 2-column layout carry over.
+      function downloadChapterAsWord() {
+        const bodyHtml = content.innerHTML.trim() || '<p></p>';
+        const doc = `<!doctype html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>Chapter ${num}</title>
+<!--[if gte mso 9]>
+<xml>
+<w:WordDocument>
+<w:View>Print</w:View>
+<w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+  @page {
+    size: 8.5in 11in;
+    margin: 1in;
+    mso-columns: 2;
+  }
+  body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 8pt;
+  }
+  h2 {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
+  }
+  .doc-columns {
+    mso-columns-count: 2;
+    column-count: 2;
+    column-gap: 24pt;
+  }
+</style>
+</head>
+<body>
+  <h2>Chapter ${num} \u2014 ${moduleTitle}</h2>
+  <div class="doc-columns">${bodyHtml}</div>
+</body>
+</html>`;
+
+        const blob = new Blob(['\ufeff', doc], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${moduleTitle.replace(/\s+/g, '-')}-Chapter-${num}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // ---- FAB options for this page ----
+      window.FAB_OPTIONS = [
+        {
+          id: 'assessment-test',
+          label: 'Assessment test',
+          onSelect: () => {
+            // Placeholder for now — tell me what this should do when ready.
+            console.log('Assessment test clicked:', moduleTitle, 'Chapter', num);
+          },
+        },
+        {
+          id: 'highlight',
+          label: 'Highlight text',
+          onSelect: applyHighlight,
+        },
+        {
+          id: 'underline',
+          label: 'Underline text',
+          onSelect: applyUnderline,
+        },
+        {
+          id: 'bold',
+          label: 'Bold text',
+          onSelect: applyBold,
+        },
+        {
+          id: 'download',
+          label: 'Download this chapter',
+          onSelect: downloadChapterAsWord,
+        },
+      ];
+    </script>
+    <script src="widget.js"></script>
+  </body>
+</html>
