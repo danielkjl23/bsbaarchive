@@ -6,7 +6,7 @@
     <title>Sales Management</title>
     <link rel="stylesheet" href="style.css" />
   </head>
-  <body>
+  <body data-module="sales" data-color="blue" data-module-title="Sales Management">
     <div class="aura-bg">
       <div class="aura-layer-1" aria-hidden="true"></div>
       <div class="aura-layer-2" aria-hidden="true"></div>
@@ -17,43 +17,43 @@
           <a href="index.html" class="back-link">&larr; Back to Archives</a>
           <h1 class="page-title">Sales Management</h1>
           <div class="chapter-list">
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="1">
               <div class="chapter-number">Chapter 1</div>
-              <div class="chapter-title-space">Introduction to Sales Management</div>
+              <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="2">
               <div class="chapter-number">Chapter 2</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="3">
               <div class="chapter-number">Chapter 3</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="4">
               <div class="chapter-number">Chapter 4</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="5">
               <div class="chapter-number">Chapter 5</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="6">
               <div class="chapter-number">Chapter 6</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="7">
               <div class="chapter-number">Chapter 7</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="8">
               <div class="chapter-number">Chapter 8</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="9">
               <div class="chapter-number">Chapter 9</div>
               <div class="chapter-title-space"></div>
             </div>
-            <div class="chapter-card chapter-card--blue">
+            <div class="chapter-card chapter-card--blue" data-chapter="10">
               <div class="chapter-number">Chapter 10</div>
               <div class="chapter-title-space"></div>
             </div>
@@ -61,5 +61,19 @@
         </div>
       </div>
     </div>
+    <script>
+      window.FAB_OPTIONS = [
+        {
+          id: 'select-chapter-assessment',
+          label: 'Select chapter assessment',
+          onSelect: () => {
+            // Placeholder for now — more choices coming later.
+            console.log('Select chapter assessment clicked');
+          },
+        },
+      ];
+    </script>
+    <script src="chapter-nav.js"></script>
+    <script src="widget.js"></script>
   </body>
 </html>
