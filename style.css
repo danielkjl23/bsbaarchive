@@ -23,7 +23,6 @@ body {
   color: var(--text-900);
   -webkit-font-smoothing: antialiased;
 }
-}
 
 .page {
   min-height: 100vh;
