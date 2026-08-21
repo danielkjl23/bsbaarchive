@@ -83,12 +83,15 @@ body {
   transition: opacity 0.3s ease;
 }
 
-.card:hover {
+.card:hover,
+.card:focus-visible {
   transform: translateY(-4px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  outline: none;
 }
 
-.card:hover::before {
+.card:hover::before,
+.card:focus-visible::before {
   opacity: 1;
 }
 
@@ -215,4 +218,27 @@ body {
   .page-title {
     font-size: 1.75rem;
   }
+}
+
+/* Placeholder module pages */
+.back-link {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.back-link:hover {
+  color: #fff;
+}
+
+.page-subtitle {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1.05rem;
+  text-align: center;
+  max-width: 32rem;
 }
