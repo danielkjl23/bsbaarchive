@@ -1,7 +1,9 @@
 // Shared floating action button (FAB).
 // Any page including this script should first define:
-//   window.FAB_OPTIONS = [{ id, label, onSelect }, ...]
-// before the <script src="widget.js"> tag.
+//   window.FAB_OPTIONS = [{ id, label, onSelect, onMount }, ...]
+// before the <script src="widget.js"> tag. onMount(btn) is optional —
+// called once with the created button element, useful for toggling an
+// "active/armed" glow state on it from the page's own code.
 
 function initFab() {
   const options = window.FAB_OPTIONS || [];
@@ -35,6 +37,10 @@ function initFab() {
     });
 
     optionsList.appendChild(btn);
+
+    if (typeof opt.onMount === 'function') {
+      opt.onMount(btn);
+    }
   });
 
   const icon = document.createElement('button');
