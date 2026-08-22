@@ -253,40 +253,59 @@
         return false;
       }
 
-      // True if every non-whitespace character in the range already has
-      // `className` somewhere in its ancestor chain. Whitespace-only text
-      // (stray spaces caught at the edge of a selection) is ignored, so
-      // a selection with a trailing/leading space still registers as
-      // "fully formatted" if the actual words are.
-      function isRangeFullyFormatted(range, className) {
-        const fragment = range.cloneContents();
-        const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT, null);
-        let hasRealText = false;
+      // ---- Why these two checks used to fail after nesting formats ----
+      // They used to work by calling range.cloneContents() and walking
+      // the CLONED fragment's ancestor chain. That clone only contains
+      // whatever sits BETWEEN the range's own boundary points — it does
+      // not include any element the range's boundaries happen to sit
+      // INSIDE of. So the moment a second format (e.g. bold) gets
+      // applied inside an already-formatted span (e.g. highlight), the
+      // tracked selection's own container becomes that inner bold span
+      // — and cloning from there can no longer "see" the highlight span
+      // wrapping it at all, even though it's still very much there in
+      // the real page. That's what made the Highlight button go dark
+      // after pressing Bold, and made a second Highlight press add a
+      // duplicate wrapper instead of removing the existing one.
+      //
+      // The fix: don't clone anything. Walk the REAL, live text nodes
+      // that intersect the range (same intersection test already used
+      // by getBlockGroups above) and check each one's actual
+      // ancestor chain, all the way up to `content`. Nothing is ever
+      // hidden this way, no matter how many formats are nested.
+      function getIntersectingTextNodes(range) {
+        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+        const nodes = [];
         let node;
         while ((node = walker.nextNode())) {
           if (isWhitespaceOnly(node.data)) continue;
-          hasRealText = true;
-          if (!hasClassAncestorWithin(node, fragment, className)) return false;
+          if (!rangeIntersectsNode(range, node)) continue;
+          nodes.push(node);
         }
-        return hasRealText;
+        return nodes;
+      }
+
+      // True if every non-whitespace character in the range already has
+      // `className` somewhere in its real ancestor chain. Whitespace-only
+      // text (stray spaces caught at the edge of a selection) is ignored,
+      // so a selection with a trailing/leading space still registers as
+      // "fully formatted" if the actual words are.
+      function isRangeFullyFormatted(range, className) {
+        const nodes = getIntersectingTextNodes(range);
+        if (!nodes.length) return false;
+        return nodes.every((node) => hasClassAncestorWithin(node, content, className));
       }
 
       // True if AT LEAST ONE non-whitespace character in the range has
-      // `className` in its ancestor chain — used to light up the
+      // `className` in its real ancestor chain — used to light up the
       // toolbar buttons. Unlike isRangeFullyFormatted (above), this
       // doesn't require the whole selection to share the formatting:
       // selecting a highlighted word plus some plain trailing text (or
       // stray spaces) still lights the button up, as long as any of
       // the selected text actually has it.
       function isRangeAnyFormatted(range, className) {
-        const fragment = range.cloneContents();
-        const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT, null);
-        let node;
-        while ((node = walker.nextNode())) {
-          if (isWhitespaceOnly(node.data)) continue;
-          if (hasClassAncestorWithin(node, fragment, className)) return true;
-        }
-        return false;
+        return getIntersectingTextNodes(range).some((node) =>
+          hasClassAncestorWithin(node, content, className)
+        );
       }
 
       function unwrapClassFrom(root, className) {
@@ -352,12 +371,13 @@
         return result;
       }
 
-      // Splits `range` into an array of Ranges, one per block element it
-      // touches, each Range confined to text-node boundaries inside
-      // that single block. Whitespace-only text nodes (indentation
-      // between tags, stray spaces at a selection's edge) are ignored
-      // so they never get treated as their own "block".
-      function splitRangeByBlock(range) {
+      // Splits `range` into an array of {block, startNode, startOffset,
+      // endNode, endOffset} groups, one per block element it touches,
+      // each confined to text-node boundaries inside that single block.
+      // Whitespace-only text nodes (indentation between tags, stray
+      // spaces at a selection's edge) are ignored so they never get
+      // treated as their own "block".
+      function getBlockGroups(range) {
         const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
         const groups = [];
         let node;
@@ -378,24 +398,98 @@
             groups.push({ block, startNode: node, startOffset, endNode: node, endOffset });
           }
         }
-
-        return groups.map((g) => {
-          const r = document.createRange();
-          r.setStart(g.startNode, g.startOffset);
-          r.setEnd(g.endNode, g.endOffset);
-          return r;
-        });
+        return groups;
       }
 
-      // ---- Applying formatting to ONE sub-range (one block). Wraps the
-      // affected slice in a throwaway <span class="__format_marker__">
-      // first — not for styling, just so toggleFormatOnRange (below) can
-      // find exactly where the newly-(un)formatted text ended up even
-      // after extractContents()/insertNode() have moved/replaced nodes.
-      // The marker is stripped back out before we're done. ----
-      const MARKER_CLASS = '__format_marker__';
+      // ---- Why a boundary-splitting step is needed before touching the
+      // DOM ----
+      // extractContents() only ever hands back whatever sits BETWEEN a
+      // range's two boundary points — never anything the range's
+      // boundary happens to sit INSIDE of. So if a selection's text
+      // already lives inside, say, a highlight span, and that span
+      // fully encloses the new selection on both sides, extracting that
+      // inner slice silently leaves the highlight span itself behind in
+      // the live page — invisible to the code that just extracted it.
+      // That's what let a second format (e.g. bold) get applied without
+      // "seeing" the highlight still wrapping it, and it's what made a
+      // second press of the SAME button re-wrap already-formatted text
+      // instead of removing it.
+      //
+      // The fix is the standard rich-text-editor trick: before touching
+      // anything, physically split every element the boundary point
+      // sits inside of — text node, and every formatting span above it
+      // up to the block — so the point always lands cleanly BETWEEN two
+      // siblings rather than in the middle of one. A temporary marker
+      // element is dropped at that exact clean point so the caller can
+      // find it again by reference (indexes shift as sibling splits
+      // happen elsewhere; a live node reference never does).
+      const BOUNDARY_MARKER_CLASS = '__boundary_marker__';
 
-      function applyFormatToSubRange(subRange, className, styleFn, alreadyFormatted) {
+      function insertBoundaryMarker(container, offset, block) {
+        let node;
+        let index;
+
+        if (container.nodeType === 3) {
+          if (offset > 0 && offset < container.data.length) {
+            container.splitText(offset);
+            node = container.parentNode;
+            index = Array.prototype.indexOf.call(node.childNodes, container) + 1;
+          } else if (offset === container.data.length) {
+            node = container.parentNode;
+            index = Array.prototype.indexOf.call(node.childNodes, container) + 1;
+          } else {
+            node = container.parentNode;
+            index = Array.prototype.indexOf.call(node.childNodes, container);
+          }
+        } else {
+          node = container;
+          index = offset;
+        }
+
+        // Climb toward `block`, splitting (cloning) any ancestor that
+        // the point currently sits in the middle of, so the point ends
+        // up as a clean child-index at every level along the way.
+        while (node !== block) {
+          const parent = node.parentNode;
+          const nodeIndex = Array.prototype.indexOf.call(parent.childNodes, node);
+          if (index > 0 && index < node.childNodes.length) {
+            const clone = node.cloneNode(false);
+            const trailing = Array.prototype.slice.call(node.childNodes, index);
+            trailing.forEach((child) => clone.appendChild(child));
+            parent.insertBefore(clone, node.nextSibling);
+            index = nodeIndex + 1;
+          } else if (index === 0) {
+            index = nodeIndex;
+          } else {
+            index = nodeIndex + 1;
+          }
+          node = parent;
+        }
+
+        const marker = document.createElement('span');
+        marker.className = BOUNDARY_MARKER_CLASS;
+        node.insertBefore(marker, node.childNodes[index] || null);
+        return marker;
+      }
+
+      // ---- Applying formatting to ONE block group. Drops boundary
+      // markers at the clean start/end points (see above), builds a
+      // Range between them — now guaranteed not to sit inside any
+      // ancestor formatting span — and only then runs the actual
+      // extractContents()/insertNode() swap. ----
+      function applyFormatToGroup(group, className, styleFn, alreadyFormatted) {
+        // End marker first: it only ever inserts new nodes to the right
+        // of the start point, so it can never invalidate startNode/
+        // startOffset before we get to use them.
+        const endMarker = insertBoundaryMarker(group.endNode, group.endOffset, group.block);
+        const startMarker = insertBoundaryMarker(group.startNode, group.startOffset, group.block);
+
+        const subRange = document.createRange();
+        subRange.setStartAfter(startMarker);
+        subRange.setEndBefore(endMarker);
+        startMarker.remove();
+        endMarker.remove();
+
         const frag = subRange.extractContents();
         // Always strip any existing spans of this class from the
         // extracted slice first — this both handles the "remove" case
@@ -403,19 +497,19 @@
         // that's only partially formatted.
         unwrapClassFrom(frag, className);
 
-        const marker = document.createElement('span');
-        marker.className = MARKER_CLASS;
+        const resultMarker = document.createElement('span');
+        resultMarker.className = BOUNDARY_MARKER_CLASS;
         if (!alreadyFormatted) {
           const wrapper = document.createElement('span');
           wrapper.className = className;
           styleFn(wrapper);
           wrapper.appendChild(frag);
-          marker.appendChild(wrapper);
+          resultMarker.appendChild(wrapper);
         } else {
-          marker.appendChild(frag);
+          resultMarker.appendChild(frag);
         }
-        subRange.insertNode(marker);
-        return marker;
+        subRange.insertNode(resultMarker);
+        return resultMarker;
       }
 
       // Applies/removes `className` across the whole (possibly
@@ -426,11 +520,11 @@
       // all on the same selected words) without the user re-selecting.
       function toggleFormatOnRange(range, className, styleFn) {
         const alreadyFormatted = isRangeFullyFormatted(range, className);
-        const subRanges = splitRangeByBlock(range);
-        if (!subRanges.length) return null;
+        const groups = getBlockGroups(range);
+        if (!groups.length) return null;
 
-        const markers = subRanges.map((subRange) =>
-          applyFormatToSubRange(subRange, className, styleFn, alreadyFormatted)
+        const markers = groups.map((group) =>
+          applyFormatToGroup(group, className, styleFn, alreadyFormatted)
         );
 
         let newRange = null;
@@ -442,8 +536,8 @@
           newRange = null;
         }
 
-        // Unwrap every marker, leaving just the (now formatted or
-        // unformatted) text behind. newRange is a live Range, so the
+        // Unwrap every result marker, leaving just the (now formatted
+        // or unformatted) text behind. newRange is a live Range, so the
         // DOM spec keeps its boundary points pointing at the same
         // logical spot as these nodes get spliced out.
         markers.forEach((marker) => unwrapElement(marker));
