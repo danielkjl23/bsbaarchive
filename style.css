@@ -395,16 +395,19 @@ body {
   flex-direction: column;
   gap: 0.6rem;
   opacity: 0;
+  visibility: hidden;
   transform: translateX(14px);
   pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0s linear 0.3s;
   max-width: 15rem;
 }
 
 .fab-wrap.is-open .fab-options {
   opacity: 1;
+  visibility: visible;
   transform: translateX(0);
   pointer-events: auto;
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0s linear 0s;
 }
 
 /* Glowing vertical spine connecting all option containers */
@@ -474,8 +477,15 @@ body {
 }
 
 @media (max-width: 640px) {
+  /* Anchor to the bottom-right corner on mobile instead of vertical
+     center. This keeps it (and its expanded panel) well clear of the
+     sticky toolbar/theme-toggle pinned at the top of the screen — the
+     overlap between the two was what made the theme toggle untappable. */
   .fab-wrap {
+    top: auto;
+    bottom: 1.25rem;
     right: 1rem;
+    transform: none;
     gap: 0.75rem;
   }
   .fab-option {
@@ -508,12 +518,19 @@ body {
   position: relative;
 }
 
+/* Zero-height marker placed just above the toolbar — purely so
+   JS can watch (via IntersectionObserver) for the moment the
+   toolbar reaches the top of the screen and becomes "stuck". */
+.toolbar-sentinel {
+  height: 1px;
+}
+
 .chapter-content {
   min-height: 16rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.85rem;
-  padding: 3.5rem 1.75rem 1.75rem;
+  padding: 1.75rem;
   color: #fff;
   line-height: 1.7;
   font-size: 0.95rem;
@@ -525,7 +542,7 @@ body {
   .chapter-content {
     font-size: 0.8rem;
     line-height: 1.6;
-    padding: 3.25rem 1.25rem 1.25rem;
+    padding: 1.25rem;
   }
 }
 
@@ -584,6 +601,14 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.chapter-title-space--detail.has-title {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
 /* Light mode: white box, black text */
 .chapter-content-wrap.is-light .chapter-content {
   background: #ffffff;
@@ -595,14 +620,44 @@ body {
   color: rgba(15, 23, 42, 0.4);
 }
 
-/* Undo/redo history controls — top-left corner of the content box,
-   mirroring the theme toggle on the top-right. */
-.history-controls {
-  position: absolute;
-  top: 0.9rem;
-  left: 0.9rem;
-  z-index: 5;
+/* ============================================================
+   Chapter toolbar — undo / redo / reset on the left, light-dark
+   switch on the right. Sticks to the top of the screen once you
+   scroll past it, and gathers into a compact pill on the left
+   (the theme toggle glides over to join it — see the is-stuck
+   state and the FLIP animation in chapter.html) when it does.
+   ============================================================ */
+.chapter-toolbar {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 20;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.chapter-toolbar.is-stuck {
+  justify-content: flex-start;
+  width: fit-content;
+  padding: 0.4rem 0.6rem;
+  background: rgba(16, 14, 11, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chapter-content-wrap.is-light .chapter-toolbar.is-stuck {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -618,6 +673,7 @@ body {
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  flex-shrink: 0;
   transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
   touch-action: manipulation;
 }
@@ -643,9 +699,10 @@ body {
 }
 
 @media (max-width: 600px) {
-  .history-controls {
-    top: 0.7rem;
-    left: 0.7rem;
+  .chapter-toolbar {
+    top: 0.6rem;
+  }
+  .toolbar-group {
     gap: 0.4rem;
   }
   .history-btn {
@@ -654,16 +711,14 @@ body {
   }
 }
 
-/* Small light/dark switch, top-right corner of the content box */
+/* Small light/dark switch — sits in the toolbar flow now instead of
+   being pinned to a corner, so it can slide/animate with the rest. */
 .theme-toggle {
-  position: absolute;
-  top: 0.9rem;
-  right: 0.9rem;
-  z-index: 5;
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .theme-toggle-track {
