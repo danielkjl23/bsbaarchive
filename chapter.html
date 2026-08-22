@@ -23,40 +23,51 @@
           <div class="chapter-title-space chapter-title-space--detail" id="chapterTitleSpace"></div>
 
           <div class="chapter-content-wrap" id="chapterContentWrap">
-            <div class="history-controls" id="historyControls">
+            <div class="toolbar-sentinel" id="toolbarSentinel" aria-hidden="true"></div>
+            <div class="chapter-toolbar" id="chapterToolbar">
+              <div class="toolbar-group" id="historyControls">
+                <button
+                  class="history-btn"
+                  id="undoBtn"
+                  type="button"
+                  aria-label="Undo last change"
+                  disabled
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+                </button>
+                <button
+                  class="history-btn"
+                  id="redoBtn"
+                  type="button"
+                  aria-label="Redo last change"
+                  disabled
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
+                </button>
+                <button
+                  class="history-btn"
+                  id="resetBtn"
+                  type="button"
+                  aria-label="Reset chapter to original text"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                </button>
+              </div>
               <button
-                class="history-btn"
-                id="undoBtn"
+                class="theme-toggle"
+                id="themeToggle"
                 type="button"
-                aria-label="Undo last change"
-                disabled
+                aria-label="Switch between light and dark mode"
+                aria-pressed="false"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
-              </button>
-              <button
-                class="history-btn"
-                id="redoBtn"
-                type="button"
-                aria-label="Redo last change"
-                disabled
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
+                <span class="theme-toggle-track">
+                  <span class="theme-toggle-knob">
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"></path></svg>
+                  </span>
+                </span>
               </button>
             </div>
-            <button
-              class="theme-toggle"
-              id="themeToggle"
-              type="button"
-              aria-label="Switch between light and dark mode"
-              aria-pressed="false"
-            >
-              <span class="theme-toggle-track">
-                <span class="theme-toggle-knob">
-                  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
-                  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"></path></svg>
-                </span>
-              </span>
-            </button>
             <div
               class="chapter-content"
               id="chapterContent"
@@ -88,6 +99,15 @@
       const content = document.getElementById('chapterContent');
       const contentKey = `${moduleKey}-${num}`;
       const PROGRESS_KEY = `bsba-progress:${contentKey}`;
+
+      // ---- Fill in the reserved blank space below "Chapter N" with
+      // this chapter's title, if one's been set in chapter-content.js. ----
+      const chapterTitleSpace = document.getElementById('chapterTitleSpace');
+      const chapterTitleText = (window.CHAPTER_TITLES && window.CHAPTER_TITLES[contentKey]) || '';
+      if (chapterTitleSpace && chapterTitleText) {
+        chapterTitleSpace.textContent = chapterTitleText;
+        chapterTitleSpace.classList.add('has-title');
+      }
 
       // ---- Load content: base text from chapter-content.js (the only
       // place anyone can actually add/edit/remove text), with any saved
@@ -134,12 +154,46 @@
         themeToggle.setAttribute('aria-pressed', String(isLight));
       });
 
+      // ---- Sticky toolbar: once scrolling carries it to the top of
+      // the screen, the toolbar pins there (CSS position: sticky) and
+      // gathers into a compact pill on the left — the theme toggle
+      // glides over to join the undo/redo/reset cluster in one smooth
+      // motion rather than just snapping into place (a "FLIP" style
+      // animation: read its position before the layout change, then
+      // animate from there back to its new resting spot). ----
+      const chapterToolbar = document.getElementById('chapterToolbar');
+      const toolbarSentinel = document.getElementById('toolbarSentinel');
+
+      function setToolbarStuck(stuck) {
+        if (!chapterToolbar || chapterToolbar.classList.contains('is-stuck') === stuck) return;
+        const before = themeToggle.getBoundingClientRect();
+
+        chapterToolbar.classList.toggle('is-stuck', stuck);
+
+        const after = themeToggle.getBoundingClientRect();
+        const dx = before.left - after.left;
+        if (dx) {
+          themeToggle.style.transition = 'none';
+          themeToggle.style.transform = `translateX(${dx}px)`;
+          requestAnimationFrame(() => {
+            themeToggle.style.transition = 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)';
+            themeToggle.style.transform = 'translateX(0)';
+          });
+        }
+      }
+
+      if (toolbarSentinel && 'IntersectionObserver' in window) {
+        const stickyObserver = new IntersectionObserver(
+          ([entry]) => setToolbarStuck(!entry.isIntersecting),
+          { threshold: 0, rootMargin: '-13px 0px 0px 0px' }
+        );
+        stickyObserver.observe(toolbarSentinel);
+      }
+
       // ---- Highlight / underline / bold: selection-aware toolbar ----
       //   1) Selecting text updates the three buttons to reflect whether
-      //      the selection already has that formatting (lit = yes). This
-      //      check ignores whitespace-only slack at the edges of the
-      //      selection (e.g. selecting "Clarify " with a trailing space
-      //      still counts as fully-formatted if "Clarify" itself is).
+      //      the selection has that formatting anywhere in it (lit = yes,
+      //      even for just part of the selection).
       //   2) Tapping a lit button strips that formatting from exactly
       //      the selected text.
       //   3) Tapping an unlit button (selection has none, or only part
@@ -217,6 +271,24 @@
         return hasRealText;
       }
 
+      // True if AT LEAST ONE non-whitespace character in the range has
+      // `className` in its ancestor chain — used to light up the
+      // toolbar buttons. Unlike isRangeFullyFormatted (above), this
+      // doesn't require the whole selection to share the formatting:
+      // selecting a highlighted word plus some plain trailing text (or
+      // stray spaces) still lights the button up, as long as any of
+      // the selected text actually has it.
+      function isRangeAnyFormatted(range, className) {
+        const fragment = range.cloneContents();
+        const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT, null);
+        let node;
+        while ((node = walker.nextNode())) {
+          if (isWhitespaceOnly(node.data)) continue;
+          if (hasClassAncestorWithin(node, fragment, className)) return true;
+        }
+        return false;
+      }
+
       function unwrapClassFrom(root, className) {
         if (!root.querySelectorAll) return;
         Array.from(root.querySelectorAll('.' + className)).forEach((el) => {
@@ -263,9 +335,9 @@
           return;
         }
         lastSelectionRange = range.cloneRange();
-        setBtnActive(highlightBtn, isRangeFullyFormatted(range, 'user-highlight'));
-        setBtnActive(underlineBtn, isRangeFullyFormatted(range, 'user-underline'));
-        setBtnActive(boldBtn, isRangeFullyFormatted(range, 'user-bold'));
+        setBtnActive(highlightBtn, isRangeAnyFormatted(range, 'user-highlight'));
+        setBtnActive(underlineBtn, isRangeAnyFormatted(range, 'user-underline'));
+        setBtnActive(boldBtn, isRangeAnyFormatted(range, 'user-bold'));
       }
 
       document.addEventListener('selectionchange', refreshToolbarFromSelection);
@@ -317,6 +389,33 @@
 
       addTapListener(undoBtn, undoChange);
       addTapListener(redoBtn, redoChange);
+
+      // ---- Reset: wipes all highlight/underline/bold marks and
+      // restores the chapter to the original text straight from
+      // chapter-content.js (also clears the saved copy in this
+      // browser's storage). Goes on the undo stack first, so a reset
+      // done by accident can still be undone. ----
+      const resetBtn = document.getElementById('resetBtn');
+
+      function resetChapterContent() {
+        const baseHtml = (window.CHAPTER_CONTENT && window.CHAPTER_CONTENT[contentKey]) || '';
+        if (content.innerHTML === baseHtml) return;
+        const confirmed = window.confirm(
+          'Reset this chapter back to its original text? This removes all your highlights, underlines, and bold marks.'
+        );
+        if (!confirmed) return;
+
+        pushHistory();
+        restoringHistory = true;
+        content.innerHTML = baseHtml;
+        restoringHistory = false;
+        redoStack = [];
+        updateHistoryButtons();
+        saveProgress();
+        refreshToolbarFromSelection();
+      }
+
+      addTapListener(resetBtn, resetChapterContent);
 
       function applyFormatToggle(className, styleFn) {
         let range = getContentSelectionRange();
