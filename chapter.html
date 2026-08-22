@@ -298,9 +298,88 @@
         });
       }
 
-      function toggleFormatOnRange(range, className, styleFn) {
-        const alreadyFormatted = isRangeFullyFormatted(range, className);
-        const frag = range.extractContents();
+      // ---- Why formatting used to "mess up the content" ----
+      // On mobile, a double/triple tap often selects a whole list item
+      // or paragraph at the ELEMENT level rather than the text level —
+      // e.g. the Range's boundaries land at "child index 1 of <ol>"
+      // instead of "character 12 of a text node inside <li>". The old
+      // code called range.extractContents()/insertNode() on that range
+      // directly, which — when the boundary is element-level — pulls
+      // the whole <li> out and re-inserts it wrapped inside a <span>.
+      // A <span> containing an <li> isn't valid HTML: the browser
+      // renders it, but the list's numbering breaks and, as soon as
+      // that HTML gets saved to localStorage and reloaded (which re-
+      // parses it as a string), the parser enforces valid nesting and
+      // silently drops/relocates content — exactly the empty numbered
+      // items in your screenshots.
+      //
+      // The fix: never run extractContents()/insertNode() on a range
+      // that might span outside a single block element. Instead, split
+      // the selection into one sub-range per block element (li/p/h3/
+      // etc.) it touches, and apply the formatting to each sub-range
+      // separately. Each sub-range only ever touches text nodes inside
+      // one block, so a <span> can never end up wrapping an <li>.
+      const BLOCK_TAGS = new Set(['P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'DIV', 'BLOCKQUOTE']);
+
+      function getBlockAncestor(node) {
+        let el = node.nodeType === 3 ? node.parentElement : node;
+        while (el && el !== content) {
+          if (BLOCK_TAGS.has(el.tagName)) return el;
+          el = el.parentElement;
+        }
+        return content;
+      }
+
+      // Standard "does this range overlap this node" check (boundary
+      // touches don't count as overlap, so a range that merely ends at
+      // the start of a node doesn't pull that node in).
+      function rangeIntersectsNode(range, node) {
+        const nodeRange = document.createRange();
+        nodeRange.selectNode(node);
+        const result =
+          range.compareBoundaryPoints(Range.END_TO_START, nodeRange) < 0 &&
+          range.compareBoundaryPoints(Range.START_TO_END, nodeRange) > 0;
+        nodeRange.detach && nodeRange.detach();
+        return result;
+      }
+
+      // Splits `range` into an array of Ranges, one per block element it
+      // touches, each Range confined to text-node boundaries inside
+      // that single block. Whitespace-only text nodes (indentation
+      // between tags, stray spaces at a selection's edge) are ignored
+      // so they never get treated as their own "block".
+      function splitRangeByBlock(range) {
+        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
+        const groups = [];
+        let node;
+        while ((node = walker.nextNode())) {
+          if (isWhitespaceOnly(node.data)) continue;
+          if (!rangeIntersectsNode(range, node)) continue;
+
+          const block = getBlockAncestor(node);
+          const startOffset = node === range.startContainer ? range.startOffset : 0;
+          const endOffset = node === range.endContainer ? range.endOffset : node.data.length;
+          if (startOffset === endOffset) continue;
+
+          const last = groups[groups.length - 1];
+          if (last && last.block === block) {
+            last.endNode = node;
+            last.endOffset = endOffset;
+          } else {
+            groups.push({ block, startNode: node, startOffset, endNode: node, endOffset });
+          }
+        }
+
+        return groups.map((g) => {
+          const r = document.createRange();
+          r.setStart(g.startNode, g.startOffset);
+          r.setEnd(g.endNode, g.endOffset);
+          return r;
+        });
+      }
+
+      function applyFormatToSubRange(subRange, className, styleFn, alreadyFormatted) {
+        const frag = subRange.extractContents();
         // Always strip any existing spans of this class from the
         // extracted slice first — this both handles the "remove" case
         // and prevents double-nesting when "applying" over a selection
@@ -311,10 +390,18 @@
           wrapper.className = className;
           styleFn(wrapper);
           wrapper.appendChild(frag);
-          range.insertNode(wrapper);
+          subRange.insertNode(wrapper);
         } else {
-          range.insertNode(frag);
+          subRange.insertNode(frag);
         }
+      }
+
+      function toggleFormatOnRange(range, className, styleFn) {
+        const alreadyFormatted = isRangeFullyFormatted(range, className);
+        const subRanges = splitRangeByBlock(range);
+        subRanges.forEach((subRange) => {
+          applyFormatToSubRange(subRange, className, styleFn, alreadyFormatted);
+        });
         content.normalize();
       }
 
