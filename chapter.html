@@ -739,16 +739,36 @@
       // for that class change — rather than listening for taps
       // ourselves — means pressing Highlight/Underline/Bold (which
       // never removes 'is-open') never triggers this, so the selection
-      // survives across as many format presses as you want. ----
+      // survives across as many format presses as you want.
+      //
+      // IMPORTANT: widget.js's own "tap anywhere outside the panel"
+      // handler calls classList.remove('is-open') on EVERY touch
+      // outside the panel — including every tap you make to start
+      // selecting text — regardless of whether the panel was even
+      // open. Browsers re-fire a class-attribute mutation on every
+      // classList.remove() call even when the class wasn't present to
+      // begin with, so without the oldValue check below this observer
+      // would fire (and wipe the selection) on essentially every tap
+      // anywhere on the page — that's what was causing selections to
+      // "snap back" instantly. Checking attributeOldValue makes sure
+      // we only react to a genuine open -> closed transition. ----
       window.addEventListener('load', () => {
         const fabWrap = document.getElementById('fabWrap');
         if (!fabWrap) return;
-        const observer = new MutationObserver(() => {
-          if (!fabWrap.classList.contains('is-open')) {
-            clearStickySelection();
-          }
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            const wasOpen = (mutation.oldValue || '').split(/\s+/).includes('is-open');
+            const isOpenNow = fabWrap.classList.contains('is-open');
+            if (wasOpen && !isOpenNow) {
+              clearStickySelection();
+            }
+          });
         });
-        observer.observe(fabWrap, { attributes: true, attributeFilter: ['class'] });
+        observer.observe(fabWrap, {
+          attributes: true,
+          attributeFilter: ['class'],
+          attributeOldValue: true,
+        });
       });
     </script>
     <script src="widget.js"></script>
