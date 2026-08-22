@@ -3,8 +3,13 @@
 // string ('') to show the "no content yet" placeholder on that chapter's page.
 // This is the ONLY place chapter text lives — the page itself does not
 // allow adding, editing, or deleting text.
+//
+// Wrap each paragraph in <p>...</p> tags — the page automatically gives
+// wrapped paragraphs a book-style look (justified text, first-line
+// indent, drop cap on the opening letter). Example:
+//   'sales-1': '<p>First paragraph here...</p><p>Second paragraph...</p>',
 window.CHAPTER_CONTENT = {
-  'sales-1': 'daniel gwapo',
+  'sales-1': '',
   'sales-2': '',
   'sales-3': '',
   'sales-4': '',
