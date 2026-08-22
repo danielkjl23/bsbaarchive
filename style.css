@@ -465,6 +465,7 @@ body {
   width: 100%;
   max-width: 44rem;
   margin-top: 1.5rem;
+  position: relative;
 }
 
 .chapter-content {
@@ -477,13 +478,90 @@ body {
   line-height: 1.7;
   font-size: 1rem;
   outline: none;
-}
-
-.chapter-content:focus {
-  border-color: var(--accent, #38bdf8);
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .chapter-content:empty::before {
   content: attr(data-placeholder);
   color: rgba(255, 255, 255, 0.35);
+}
+
+/* Light mode: white box, black text */
+.chapter-content-wrap.is-light .chapter-content {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+}
+
+.chapter-content-wrap.is-light .chapter-content:empty::before {
+  color: rgba(15, 23, 42, 0.4);
+}
+
+/* Small light/dark switch, top-right corner of the content box */
+.theme-toggle {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  z-index: 5;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.theme-toggle-track {
+  display: block;
+  width: 2.5rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  position: relative;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.chapter-content-wrap.is-light .theme-toggle-track {
+  background: #e2e8f0;
+  border-color: rgba(15, 23, 42, 0.15);
+}
+
+.theme-toggle-knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: #0f172a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.chapter-content-wrap.is-light .theme-toggle-knob {
+  transform: translateX(1.2rem);
+  background: #fbbf24;
+  color: #78350f;
+}
+
+.theme-toggle-knob svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.theme-toggle-knob .icon-sun {
+  display: none;
+}
+.theme-toggle-knob .icon-moon {
+  display: block;
+}
+
+.chapter-content-wrap.is-light .theme-toggle-knob .icon-sun {
+  display: block;
+}
+.chapter-content-wrap.is-light .theme-toggle-knob .icon-moon {
+  display: none;
 }
