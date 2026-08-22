@@ -114,22 +114,26 @@
         themeToggle.setAttribute('aria-pressed', String(isLight));
       });
 
-      // ---- Highlight / underline / bold: "armed pen" behavior ----
-      // Pressing a button arms that formatting (glows to show it's on)
-      // and it stays armed — even with the panel closed — until pressed
-      // again. While armed, every text selection made in the content
-      // gets that formatting applied (or removed, if re-selecting text
-      // that already has it). Multiple pens can be armed at once.
+      // ---- Highlight / underline / bold: selection-aware toolbar ----
+      // No "armed pen" mode and no separate Clean button. Instead:
+      //   1) Selecting text updates the three buttons to reflect whether
+      //      the WHOLE selection already has that formatting (lit = yes).
+      //   2) Tapping a lit button strips that formatting from the
+      //      selection (this replaces "Clean", per format).
+      //   3) Tapping an unlit button applies that formatting to the
+      //      selection.
+      // On mobile, selecting text is already fragile, so tapping a
+      // toolbar button is set up not to steal/collapse the selection
+      // (mousedown/touchstart preventDefault + a cached last-range
+      // fallback in case the browser drops it anyway).
       const HIGHLIGHT_COLOR = '#00e5ff'; // sampled from the provided swatch
-      const ACTIVE_MODES = { highlight: false, underline: false, bold: false, clean: false };
       let highlightBtn = null;
       let underlineBtn = null;
       let boldBtn = null;
-      let cleanBtn = null;
+      let lastSelectionRange = null;
 
-      function toggleMode(mode, btn) {
-        ACTIVE_MODES[mode] = !ACTIVE_MODES[mode];
-        if (btn) btn.classList.toggle('is-active', ACTIVE_MODES[mode]);
+      function setBtnActive(btn, active) {
+        if (btn) btn.classList.toggle('is-active', active);
       }
 
       function findFormatAncestor(node, className) {
@@ -141,12 +145,18 @@
         return null;
       }
 
+      function isRangeFullyFormatted(range, className) {
+        const startAncestor = findFormatAncestor(range.startContainer, className);
+        const endAncestor = findFormatAncestor(range.endContainer, className);
+        return !!(startAncestor && startAncestor === endAncestor);
+      }
+
       function toggleFormatOnRange(range, className, styleFn) {
         const startAncestor = findFormatAncestor(range.startContainer, className);
         const endAncestor = findFormatAncestor(range.endContainer, className);
 
         if (startAncestor && startAncestor === endAncestor) {
-          // Already has this formatting — remove it.
+          // Already has this formatting — remove it (the "clean" case).
           const parent = startAncestor.parentNode;
           while (startAncestor.firstChild) {
             parent.insertBefore(startAncestor.firstChild, startAncestor);
@@ -168,60 +178,48 @@
         }
       }
 
-      function cleanFormattingOnRange(range) {
-        const frag = range.extractContents();
-        ['user-highlight', 'user-underline', 'user-bold'].forEach((cls) => {
-          frag.querySelectorAll(`.${cls}`).forEach((el) => {
-            const parent = el.parentNode;
-            while (el.firstChild) {
-              parent.insertBefore(el.firstChild, el);
-            }
-            parent.removeChild(el);
-          });
-        });
-        range.insertNode(frag);
-        content.normalize();
+      function getContentSelectionRange() {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+        const range = sel.getRangeAt(0);
+        if (!content.contains(range.commonAncestorContainer)) return null;
+        return range;
       }
 
-      function applyArmedFormatsToSelection() {
-        if (!ACTIVE_MODES.highlight && !ACTIVE_MODES.underline && !ACTIVE_MODES.bold && !ACTIVE_MODES.clean) return;
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-        const range = sel.getRangeAt(0);
-        if (!content.contains(range.commonAncestorContainer)) return;
-
-        // Clean is treated as its own tool — if it's armed, a selection
-        // just strips formatting rather than mixing with the other pens.
-        if (ACTIVE_MODES.clean) {
-          cleanFormattingOnRange(range);
-          sel.removeAllRanges();
-          saveProgress();
+      function refreshToolbarFromSelection() {
+        const range = getContentSelectionRange();
+        if (!range) {
+          setBtnActive(highlightBtn, false);
+          setBtnActive(underlineBtn, false);
+          setBtnActive(boldBtn, false);
           return;
         }
-
-        if (ACTIVE_MODES.highlight) {
-          toggleFormatOnRange(range, 'user-highlight', (el) => {
-            el.style.backgroundColor = HIGHLIGHT_COLOR;
-            el.style.color = '#0f172a';
-          });
-        }
-        if (ACTIVE_MODES.underline) {
-          toggleFormatOnRange(range, 'user-underline', (el) => {
-            el.style.textDecoration = 'underline';
-          });
-        }
-        if (ACTIVE_MODES.bold) {
-          toggleFormatOnRange(range, 'user-bold', (el) => {
-            el.style.fontWeight = '700';
-          });
-        }
-
-        sel.removeAllRanges();
-        saveProgress();
+        lastSelectionRange = range.cloneRange();
+        setBtnActive(highlightBtn, isRangeFullyFormatted(range, 'user-highlight'));
+        setBtnActive(underlineBtn, isRangeFullyFormatted(range, 'user-underline'));
+        setBtnActive(boldBtn, isRangeFullyFormatted(range, 'user-bold'));
       }
 
-      content.addEventListener('mouseup', applyArmedFormatsToSelection);
-      content.addEventListener('touchend', applyArmedFormatsToSelection);
+      document.addEventListener('selectionchange', refreshToolbarFromSelection);
+
+      function applyFormatToggle(className, styleFn) {
+        let range = getContentSelectionRange();
+        if (!range && lastSelectionRange) range = lastSelectionRange.cloneRange();
+        if (!range) return;
+
+        toggleFormatOnRange(range, className, styleFn);
+        lastSelectionRange = null;
+        saveProgress();
+        refreshToolbarFromSelection();
+      }
+
+      function wireToolbarButton(btn, className, styleFn) {
+        if (!btn) return;
+        // Belt-and-suspenders on top of widget.js's own mousedown guard —
+        // also cover touchstart so mobile taps don't collapse the selection.
+        btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+        btn.addEventListener('click', () => applyFormatToggle(className, styleFn));
+      }
 
       // ---- Download this chapter as a Word (.doc) file ----
       // Captures whatever's currently in the content box, including any
@@ -284,26 +282,33 @@
         {
           id: 'highlight',
           label: 'Highlight text',
-          onMount: (btn) => { highlightBtn = btn; },
-          onSelect: () => toggleMode('highlight', highlightBtn),
+          onMount: (btn) => {
+            highlightBtn = btn;
+            wireToolbarButton(btn, 'user-highlight', (el) => {
+              el.style.backgroundColor = HIGHLIGHT_COLOR;
+              el.style.color = '#0f172a';
+            });
+          },
         },
         {
           id: 'underline',
           label: 'Underline text',
-          onMount: (btn) => { underlineBtn = btn; },
-          onSelect: () => toggleMode('underline', underlineBtn),
+          onMount: (btn) => {
+            underlineBtn = btn;
+            wireToolbarButton(btn, 'user-underline', (el) => {
+              el.style.textDecoration = 'underline';
+            });
+          },
         },
         {
           id: 'bold',
           label: 'Bold text',
-          onMount: (btn) => { boldBtn = btn; },
-          onSelect: () => toggleMode('bold', boldBtn),
-        },
-        {
-          id: 'clean',
-          label: 'Clean',
-          onMount: (btn) => { cleanBtn = btn; },
-          onSelect: () => toggleMode('clean', cleanBtn),
+          onMount: (btn) => {
+            boldBtn = btn;
+            wireToolbarButton(btn, 'user-bold', (el) => {
+              el.style.fontWeight = '700';
+            });
+          },
         },
         {
           id: 'assessment-test',
