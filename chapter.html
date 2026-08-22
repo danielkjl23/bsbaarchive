@@ -154,32 +154,21 @@
         themeToggle.setAttribute('aria-pressed', String(isLight));
       });
 
-      // ---- Sticky toolbar: once scrolling carries it to the top of
-      // the screen, the toolbar pins there (CSS position: sticky) and
-      // gathers into a compact pill on the left — the theme toggle
-      // glides over to join the undo/redo/reset cluster in one smooth
-      // motion rather than just snapping into place (a "FLIP" style
-      // animation: read its position before the layout change, then
-      // animate from there back to its new resting spot). ----
+      // ---- Sticky toolbar: normally sits in flow above the content.
+      // Once scrolling carries it to the top of the screen (native
+      // CSS position: sticky handles the "don't move until you hit
+      // that limit" part), it gets the "is-stuck" class:
+      //   - Desktop: CSS switches it to a fixed vertical dock in the
+      //     left corner of the viewport (see style.css).
+      //   - Mobile: it just pins to the top in its existing horizontal
+      //     layout — no repositioning needed, so no JS beyond the
+      //     class toggle itself. ----
       const chapterToolbar = document.getElementById('chapterToolbar');
       const toolbarSentinel = document.getElementById('toolbarSentinel');
 
       function setToolbarStuck(stuck) {
-        if (!chapterToolbar || chapterToolbar.classList.contains('is-stuck') === stuck) return;
-        const before = themeToggle.getBoundingClientRect();
-
+        if (!chapterToolbar) return;
         chapterToolbar.classList.toggle('is-stuck', stuck);
-
-        const after = themeToggle.getBoundingClientRect();
-        const dx = before.left - after.left;
-        if (dx) {
-          themeToggle.style.transition = 'none';
-          themeToggle.style.transform = `translateX(${dx}px)`;
-          requestAnimationFrame(() => {
-            themeToggle.style.transition = 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)';
-            themeToggle.style.transform = 'translateX(0)';
-          });
-        }
       }
 
       if (toolbarSentinel && 'IntersectionObserver' in window) {
