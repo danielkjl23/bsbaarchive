@@ -292,10 +292,19 @@
       function unwrapClassFrom(root, className) {
         if (!root.querySelectorAll) return;
         Array.from(root.querySelectorAll('.' + className)).forEach((el) => {
-          const parent = el.parentNode;
-          while (el.firstChild) parent.insertBefore(el.firstChild, el);
-          parent.removeChild(el);
+          unwrapElement(el);
         });
+      }
+
+      // Removes a single element, splicing its children into its former
+      // spot in the parent. Used both by unwrapClassFrom above (each
+      // formatting span it finds) and directly on the temporary marker
+      // spans in toggleFormatOnRange below.
+      function unwrapElement(el) {
+        const parent = el.parentNode;
+        if (!parent) return;
+        while (el.firstChild) parent.insertBefore(el.firstChild, el);
+        parent.removeChild(el);
       }
 
       // ---- Why formatting used to "mess up the content" ----
@@ -378,6 +387,14 @@
         });
       }
 
+      // ---- Applying formatting to ONE sub-range (one block). Wraps the
+      // affected slice in a throwaway <span class="__format_marker__">
+      // first — not for styling, just so toggleFormatOnRange (below) can
+      // find exactly where the newly-(un)formatted text ended up even
+      // after extractContents()/insertNode() have moved/replaced nodes.
+      // The marker is stripped back out before we're done. ----
+      const MARKER_CLASS = '__format_marker__';
+
       function applyFormatToSubRange(subRange, className, styleFn, alreadyFormatted) {
         const frag = subRange.extractContents();
         // Always strip any existing spans of this class from the
@@ -385,24 +402,54 @@
         // and prevents double-nesting when "applying" over a selection
         // that's only partially formatted.
         unwrapClassFrom(frag, className);
+
+        const marker = document.createElement('span');
+        marker.className = MARKER_CLASS;
         if (!alreadyFormatted) {
           const wrapper = document.createElement('span');
           wrapper.className = className;
           styleFn(wrapper);
           wrapper.appendChild(frag);
-          subRange.insertNode(wrapper);
+          marker.appendChild(wrapper);
         } else {
-          subRange.insertNode(frag);
+          marker.appendChild(frag);
         }
+        subRange.insertNode(marker);
+        return marker;
       }
 
+      // Applies/removes `className` across the whole (possibly
+      // multi-block) range and returns a fresh Range spanning exactly
+      // the text that was just (un)formatted — so the caller can keep
+      // that as the "sticky" selection and immediately apply another
+      // format on top of it (e.g. highlight, then underline, then bold,
+      // all on the same selected words) without the user re-selecting.
       function toggleFormatOnRange(range, className, styleFn) {
         const alreadyFormatted = isRangeFullyFormatted(range, className);
         const subRanges = splitRangeByBlock(range);
-        subRanges.forEach((subRange) => {
-          applyFormatToSubRange(subRange, className, styleFn, alreadyFormatted);
-        });
+        if (!subRanges.length) return null;
+
+        const markers = subRanges.map((subRange) =>
+          applyFormatToSubRange(subRange, className, styleFn, alreadyFormatted)
+        );
+
+        let newRange = null;
+        try {
+          newRange = document.createRange();
+          newRange.setStartBefore(markers[0]);
+          newRange.setEndAfter(markers[markers.length - 1]);
+        } catch (err) {
+          newRange = null;
+        }
+
+        // Unwrap every marker, leaving just the (now formatted or
+        // unformatted) text behind. newRange is a live Range, so the
+        // DOM spec keeps its boundary points pointing at the same
+        // logical spot as these nodes get spliced out.
+        markers.forEach((marker) => unwrapElement(marker));
         content.normalize();
+
+        return newRange && !newRange.collapsed ? newRange : null;
       }
 
       function getContentSelectionRange() {
@@ -413,24 +460,56 @@
         return range;
       }
 
+      // ---- Sticky selection ----
+      // The 3 format buttons don't act on the browser's LIVE selection —
+      // they act on `lastSelectionRange`, a range we track ourselves.
+      // Why: opening the FAB panel (tapping outside the selected text)
+      // can make mobile browsers silently collapse the live selection
+      // even though the highlighted text is still visibly selected on
+      // screen, which used to make the toolbar buttons go dark for no
+      // visible reason. Tracking our own copy means:
+      //   - the buttons still light up correctly when you open the
+      //     panel over already-formatted text
+      //   - pressing highlight/underline/bold doesn't drop the
+      //     selection, so you can press more than one of them in a row
+      //     on the same selected text
+      // It's only cleared when the FAB panel actually closes (tapping
+      // empty space, or the icon itself) via the MutationObserver near
+      // the bottom of this script.
       function refreshToolbarFromSelection() {
-        const range = getContentSelectionRange();
-        if (!range) {
+        if (!lastSelectionRange) {
           setBtnActive(highlightBtn, false);
           setBtnActive(underlineBtn, false);
           setBtnActive(boldBtn, false);
           return;
         }
-        lastSelectionRange = range.cloneRange();
-        setBtnActive(highlightBtn, isRangeAnyFormatted(range, 'user-highlight'));
-        setBtnActive(underlineBtn, isRangeAnyFormatted(range, 'user-underline'));
-        setBtnActive(boldBtn, isRangeAnyFormatted(range, 'user-bold'));
+        setBtnActive(highlightBtn, isRangeAnyFormatted(lastSelectionRange, 'user-highlight'));
+        setBtnActive(underlineBtn, isRangeAnyFormatted(lastSelectionRange, 'user-underline'));
+        setBtnActive(boldBtn, isRangeAnyFormatted(lastSelectionRange, 'user-bold'));
       }
 
-      document.addEventListener('selectionchange', refreshToolbarFromSelection);
+      // Only ADOPTS a new sticky range when there's a genuine, non-
+      // collapsed live selection inside the content — it never clears
+      // the sticky range just because the live selection momentarily
+      // disappears (that's what used to cause the buttons to go dark).
+      function syncStickySelectionFromLiveSelection() {
+        const range = getContentSelectionRange();
+        if (!range) return;
+        lastSelectionRange = range.cloneRange();
+        refreshToolbarFromSelection();
+      }
+
+      function clearStickySelection() {
+        lastSelectionRange = null;
+        const sel = window.getSelection();
+        if (sel) sel.removeAllRanges();
+        refreshToolbarFromSelection();
+      }
+
+      document.addEventListener('selectionchange', syncStickySelectionFromLiveSelection);
       // selectionchange can lag or misfire on mobile right at the moment
       // a finger lifts — re-check explicitly on touchend as a backstop.
-      content.addEventListener('touchend', () => setTimeout(refreshToolbarFromSelection, 0));
+      content.addEventListener('touchend', () => setTimeout(syncStickySelectionFromLiveSelection, 0));
 
       // ---- Undo / redo history for content edits ----
       const undoBtn = document.getElementById('undoBtn');
@@ -459,7 +538,9 @@
         restoringHistory = false;
         saveProgress();
         updateHistoryButtons();
-        refreshToolbarFromSelection();
+        // The old sticky range may point at nodes that no longer exist
+        // post-restore, so drop it rather than risk using a stale range.
+        clearStickySelection();
       }
 
       function undoChange() {
@@ -499,24 +580,37 @@
         redoStack = [];
         updateHistoryButtons();
         saveProgress();
-        refreshToolbarFromSelection();
+        clearStickySelection();
       }
 
       addTapListener(resetBtn, resetChapterContent);
 
       function applyFormatToggle(className, styleFn) {
-        let range = getContentSelectionRange();
-        if (!range && lastSelectionRange) range = lastSelectionRange.cloneRange();
+        const range = lastSelectionRange
+          ? lastSelectionRange.cloneRange()
+          : getContentSelectionRange();
         if (!range) return;
 
         pushHistory();
-        toggleFormatOnRange(range, className, styleFn);
-        lastSelectionRange = null;
+        let newRange = null;
+        try {
+          newRange = toggleFormatOnRange(range, className, styleFn);
+        } catch (err) {
+          newRange = null;
+        }
         saveProgress();
+
+        // Keep the (possibly re-shaped) range as the sticky selection so
+        // another format button can be pressed right after this one,
+        // and re-apply it as the visible browser selection too.
+        lastSelectionRange = newRange;
         refreshToolbarFromSelection();
 
         const sel = window.getSelection();
-        if (sel) sel.removeAllRanges();
+        if (sel) {
+          sel.removeAllRanges();
+          if (newRange) sel.addRange(newRange);
+        }
       }
 
       function wireToolbarButton(btn, className, styleFn) {
@@ -637,6 +731,25 @@
           onSelect: downloadChapterAsWord,
         },
       ];
+
+      // ---- End the sticky selection only when the FAB panel actually
+      // closes (tapping empty/random space, tapping the icon again to
+      // close it, or Escape — widget.js already treats all of those as
+      // "close the panel" by removing the 'is-open' class). Watching
+      // for that class change — rather than listening for taps
+      // ourselves — means pressing Highlight/Underline/Bold (which
+      // never removes 'is-open') never triggers this, so the selection
+      // survives across as many format presses as you want. ----
+      window.addEventListener('load', () => {
+        const fabWrap = document.getElementById('fabWrap');
+        if (!fabWrap) return;
+        const observer = new MutationObserver(() => {
+          if (!fabWrap.classList.contains('is-open')) {
+            clearStickySelection();
+          }
+        });
+        observer.observe(fabWrap, { attributes: true, attributeFilter: ['class'] });
+      });
     </script>
     <script src="widget.js"></script>
   </body>
