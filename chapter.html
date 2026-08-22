@@ -15,8 +15,8 @@
       <div class="aura-content">
         <div class="page page--top">
           <a href="index.html" class="back-link" id="backLink">&larr; Back</a>
-          <p class="chapter-meta" id="chapterMeta"></p>
           <h1 class="page-title" id="chapterHeading">Chapter</h1>
+          <div class="chapter-title-space chapter-title-space--detail" id="chapterTitleSpace"></div>
 
           <div class="chapter-content-wrap" id="chapterContentWrap">
             <button
@@ -56,19 +56,51 @@
       document.documentElement.style.setProperty('--accent', ACCENTS[color] || ACCENTS.blue);
 
       document.getElementById('chapterHeading').textContent = `Chapter ${num}`;
-      document.getElementById('chapterMeta').textContent = moduleTitle;
       const backLink = document.getElementById('backLink');
       backLink.textContent = `\u2190 Back to ${moduleTitle}`;
       backLink.href = moduleKey ? `${moduleKey}.html` : 'index.html';
       document.title = `Chapter ${num} \u2014 ${moduleTitle}`;
 
-      // ---- Load this chapter's read-only content from chapter-content.js ----
-      // The page itself never lets anyone add, type, or delete this text —
-      // it's only ever changed by editing chapter-content.js directly.
       const content = document.getElementById('chapterContent');
       const contentKey = `${moduleKey}-${num}`;
-      const savedHtml = (window.CHAPTER_CONTENT && window.CHAPTER_CONTENT[contentKey]) || '';
-      content.innerHTML = savedHtml;
+      const PROGRESS_KEY = `bsba-progress:${contentKey}`;
+
+      // ---- Load content: base text from chapter-content.js (the only
+      // place anyone can actually add/edit/remove text), with any saved
+      // highlight/underline/bold marks from this browser layered on top. ----
+      function loadContent() {
+        const baseHtml = (window.CHAPTER_CONTENT && window.CHAPTER_CONTENT[contentKey]) || '';
+        let workingHtml = baseHtml;
+
+        try {
+          const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) || 'null');
+          // Only reuse the saved (formatted) version if the underlying
+          // base text hasn't changed since it was saved — otherwise an
+          // update to chapter-content.js would be silently hidden.
+          if (saved && saved.baseHtml === baseHtml && typeof saved.workingHtml === 'string') {
+            workingHtml = saved.workingHtml;
+          }
+        } catch (err) {
+          // Storage blocked/corrupt — just fall back to the base content.
+        }
+
+        content.innerHTML = workingHtml;
+      }
+
+      function saveProgress() {
+        const baseHtml = (window.CHAPTER_CONTENT && window.CHAPTER_CONTENT[contentKey]) || '';
+        try {
+          localStorage.setItem(
+            PROGRESS_KEY,
+            JSON.stringify({ baseHtml, workingHtml: content.innerHTML })
+          );
+        } catch (err) {
+          // Storage full/blocked — formatting still works this session,
+          // it just won't persist on reload.
+        }
+      }
+
+      loadContent();
 
       // ---- Light / dark mode toggle for the content box ----
       const themeToggle = document.getElementById('themeToggle');
@@ -78,11 +110,22 @@
         themeToggle.setAttribute('aria-pressed', String(isLight));
       });
 
-      // ---- Text formatting (highlight / underline / bold) ----
-      // Selecting existing text and wrapping/unwrapping it in a styled
-      // <span> — this only changes appearance, never the underlying text,
-      // so nothing can be typed in or deleted.
+      // ---- Highlight / underline / bold: "armed pen" behavior ----
+      // Pressing a button arms that formatting (glows to show it's on)
+      // and it stays armed — even with the panel closed — until pressed
+      // again. While armed, every text selection made in the content
+      // gets that formatting applied (or removed, if re-selecting text
+      // that already has it). Multiple pens can be armed at once.
       const HIGHLIGHT_COLOR = '#00e5ff'; // sampled from the provided swatch
+      const ACTIVE_MODES = { highlight: false, underline: false, bold: false };
+      let highlightBtn = null;
+      let underlineBtn = null;
+      let boldBtn = null;
+
+      function toggleMode(mode, btn) {
+        ACTIVE_MODES[mode] = !ACTIVE_MODES[mode];
+        if (btn) btn.classList.toggle('is-active', ACTIVE_MODES[mode]);
+      }
 
       function findFormatAncestor(node, className) {
         let el = node.nodeType === 3 ? node.parentElement : node;
@@ -93,21 +136,12 @@
         return null;
       }
 
-      // Wraps the current selection in a styled span, or — if the
-      // selection is already wrapped in that exact formatting — removes
-      // it. This is what makes pressing the same button twice toggle
-      // the formatting back off.
-      function toggleFormat(className, styleFn) {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-        const range = sel.getRangeAt(0);
-        if (!content.contains(range.commonAncestorContainer)) return;
-
+      function toggleFormatOnRange(range, className, styleFn) {
         const startAncestor = findFormatAncestor(range.startContainer, className);
         const endAncestor = findFormatAncestor(range.endContainer, className);
 
         if (startAncestor && startAncestor === endAncestor) {
-          // Already formatted — unwrap it.
+          // Already has this formatting — remove it.
           const parent = startAncestor.parentNode;
           while (startAncestor.firstChild) {
             parent.insertBefore(startAncestor.firstChild, startAncestor);
@@ -115,46 +149,54 @@
           parent.removeChild(startAncestor);
           parent.normalize();
         } else {
-          // Not formatted yet — wrap it.
+          // Doesn't have it yet — apply it.
           const wrapper = document.createElement('span');
           wrapper.className = className;
           styleFn(wrapper);
           try {
             range.surroundContents(wrapper);
           } catch (err) {
-            // Selection crosses multiple elements — extract then wrap.
             const frag = range.extractContents();
             wrapper.appendChild(frag);
             range.insertNode(wrapper);
           }
         }
+      }
+
+      function applyArmedFormatsToSelection() {
+        if (!ACTIVE_MODES.highlight && !ACTIVE_MODES.underline && !ACTIVE_MODES.bold) return;
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+        const range = sel.getRangeAt(0);
+        if (!content.contains(range.commonAncestorContainer)) return;
+
+        if (ACTIVE_MODES.highlight) {
+          toggleFormatOnRange(range, 'user-highlight', (el) => {
+            el.style.backgroundColor = HIGHLIGHT_COLOR;
+            el.style.color = '#0f172a';
+          });
+        }
+        if (ACTIVE_MODES.underline) {
+          toggleFormatOnRange(range, 'user-underline', (el) => {
+            el.style.textDecoration = 'underline';
+          });
+        }
+        if (ACTIVE_MODES.bold) {
+          toggleFormatOnRange(range, 'user-bold', (el) => {
+            el.style.fontWeight = '700';
+          });
+        }
+
         sel.removeAllRanges();
+        saveProgress();
       }
 
-      function applyHighlight() {
-        toggleFormat('user-highlight', (el) => {
-          el.style.backgroundColor = HIGHLIGHT_COLOR;
-          el.style.color = '#0f172a';
-        });
-      }
-
-      function applyUnderline() {
-        toggleFormat('user-underline', (el) => {
-          el.style.textDecoration = 'underline';
-        });
-      }
-
-      function applyBold() {
-        toggleFormat('user-bold', (el) => {
-          el.style.fontWeight = '700';
-        });
-      }
+      content.addEventListener('mouseup', applyArmedFormatsToSelection);
+      content.addEventListener('touchend', applyArmedFormatsToSelection);
 
       // ---- Download this chapter as a Word (.doc) file ----
-      // Uses Word's HTML import format so styling (bold/underline/highlight),
-      // the Times New Roman 8pt font, and the 2-column layout carry over.
-      // Note: highlight/underline/bold only exist in this browser session —
-      // download captures whatever's applied right now.
+      // Captures whatever's currently in the content box, including any
+      // highlight/underline/bold applied — Times New Roman, 8pt, 2 columns.
       function downloadChapterAsWord() {
         const bodyHtml = content.innerHTML.trim() || '<p></p>';
         const doc = `<!doctype html>
@@ -213,23 +255,27 @@
         {
           id: 'highlight',
           label: 'Highlight text',
-          onSelect: applyHighlight,
+          onMount: (btn) => { highlightBtn = btn; },
+          onSelect: () => toggleMode('highlight', highlightBtn),
         },
         {
           id: 'underline',
           label: 'Underline text',
-          onSelect: applyUnderline,
+          onMount: (btn) => { underlineBtn = btn; },
+          onSelect: () => toggleMode('underline', underlineBtn),
         },
         {
           id: 'bold',
           label: 'Bold text',
-          onSelect: applyBold,
+          onMount: (btn) => { boldBtn = btn; },
+          onSelect: () => toggleMode('bold', boldBtn),
         },
         {
           id: 'assessment-test',
           label: 'Assessment test',
           onSelect: () => {
-            // Placeholder for now — tell me what this should do when ready.
+            // Placeholder for now — tell me what this should do when ready,
+            // and I'll wire up autosaving for it the same way as the text.
             console.log('Assessment test clicked:', moduleTitle, 'Chapter', num);
           },
         },
