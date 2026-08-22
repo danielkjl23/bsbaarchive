@@ -220,6 +220,19 @@ body {
   }
 }
 
+/* The big "Chapter N" heading on chapter detail pages, scaled down
+   a bit closer in proportion to the subtitle sitting right below it
+   (rather than the larger default .page-title size used elsewhere). */
+#chapterHeading {
+  font-size: 2rem;
+}
+
+@media (max-width: 600px) {
+  #chapterHeading {
+    font-size: 1.5rem;
+  }
+}
+
 /* Placeholder module pages */
 .back-link {
   position: absolute;
@@ -306,6 +319,20 @@ body {
 .chapter-title-space {
   min-height: 1.4rem;
   margin-top: 0.3rem;
+}
+
+/* Once a title is filled in (from window.CHAPTER_TITLES, wired up in
+   chapter-nav.js), it renders here at the same proportion as the
+   "Chapter N" label above it by default. Long titles get their font
+   size shrunk down by chapter-nav.js (via the --title-fit-scale
+   variable) just enough to keep fitting the card cleanly, since not
+   every chapter's title length is known ahead of time. */
+.chapter-title-space.has-title {
+  min-height: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 500;
+  line-height: 1.35;
+  font-size: calc(0.95rem * var(--title-fit-scale, 1));
 }
 
 .chapter-card--blue {
@@ -622,10 +649,16 @@ body {
 
 /* ============================================================
    Chapter toolbar — undo / redo / reset on the left, light-dark
-   switch on the right. Sticks to the top of the screen once you
-   scroll past it, and gathers into a compact pill on the left
-   (the theme toggle glides over to join it — see the is-stuck
-   state and the FLIP animation in chapter.html) when it does.
+   switch on the right. Normally sits in flow above the chapter
+   content (position: sticky handles "don't move until you hit
+   the top of the screen" natively). Once it hits that limit:
+     - Desktop: it detaches into a fixed vertical dock in the
+       LEFT corner of the viewport, outside the content column —
+       mirroring the round "<" FAB dock on the right (see the
+       min-width: 601px override below).
+     - Mobile: it just pins to the top of the screen in its
+       existing horizontal layout — no rearranging, no sideways
+       movement, only vertical.
    ============================================================ */
 .chapter-toolbar {
   position: sticky;
@@ -639,12 +672,10 @@ body {
 }
 
 .chapter-toolbar.is-stuck {
-  justify-content: flex-start;
-  width: fit-content;
   padding: 0.4rem 0.6rem;
   background: rgba(16, 14, 11, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
+  border-radius: 0.85rem;
   backdrop-filter: blur(14px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
   transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
@@ -653,6 +684,31 @@ body {
 .chapter-content-wrap.is-light .chapter-toolbar.is-stuck {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.12);
+}
+
+/* Desktop: once stuck, leave the content column entirely and dock
+   as a fixed vertical stack in the left corner of the viewport —
+   same fixed/centered-vertically placement as the right-side FAB
+   ("<") toggle, just mirrored to the left and holding 4 controls
+   instead of 1. */
+@media (min-width: 601px) {
+  .chapter-toolbar.is-stuck {
+    position: fixed;
+    top: 50%;
+    left: 1.75rem;
+    transform: translateY(-50%);
+    flex-direction: column;
+    justify-content: center;
+    width: auto;
+    padding: 0.6rem 0.5rem;
+    border-radius: 999px;
+    gap: 0.7rem;
+  }
+
+  .chapter-toolbar.is-stuck .toolbar-group {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
 }
 
 .toolbar-group {
