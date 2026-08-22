@@ -5,6 +5,33 @@
 // called once with the created button element, useful for toggling an
 // "active/armed" glow state on it from the page's own code.
 
+// Fires `handler` once per tap, on whichever event actually arrives first
+// (touchend on touch devices, click on mouse/desktop) — and prevents the
+// browser's synthetic click-after-touchend from double-firing it. Also
+// preventDefaults touchstart so the tap doesn't scroll/zoom or collapse
+// a text selection elsewhere on the page before the tap registers.
+function addTapListener(el, handler) {
+  let firedByTouch = false;
+  el.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+  el.addEventListener(
+    'touchend',
+    (e) => {
+      e.preventDefault();
+      firedByTouch = true;
+      handler(e);
+      setTimeout(() => {
+        firedByTouch = false;
+      }, 500);
+    },
+    { passive: false }
+  );
+  el.addEventListener('click', (e) => {
+    if (firedByTouch) return;
+    handler(e);
+  });
+}
+window.addTapListener = addTapListener;
+
 function initFab() {
   const options = window.FAB_OPTIONS || [];
   if (!options.length) return;
@@ -26,11 +53,11 @@ function initFab() {
     btn.dataset.id = opt.id || '';
     btn.setAttribute('role', 'menuitem');
 
-    // Keep focus (and any active text selection in a contenteditable
-    // area elsewhere on the page) intact when this button is pressed.
+    // Keep focus (and any active text selection elsewhere on the page)
+    // intact when this button is pressed.
     btn.addEventListener('mousedown', (e) => e.preventDefault());
 
-    btn.addEventListener('click', () => {
+    addTapListener(btn, () => {
       if (typeof opt.onSelect === 'function') {
         opt.onSelect(btn);
       }
@@ -56,7 +83,7 @@ function initFab() {
   wrap.appendChild(icon);
   document.body.appendChild(wrap);
 
-  icon.addEventListener('click', () => {
+  addTapListener(icon, () => {
     const isOpen = wrap.classList.toggle('is-open');
     icon.setAttribute('aria-expanded', String(isOpen));
   });
@@ -67,6 +94,17 @@ function initFab() {
       icon.setAttribute('aria-expanded', 'false');
     }
   });
+
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      if (!wrap.contains(e.target)) {
+        wrap.classList.remove('is-open');
+        icon.setAttribute('aria-expanded', 'false');
+      }
+    },
+    { passive: true }
+  );
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
