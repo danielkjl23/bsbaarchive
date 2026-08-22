@@ -14,7 +14,11 @@
       <div class="aura-layer-4" aria-hidden="true"></div>
       <div class="aura-content">
         <div class="page page--top">
-          <a href="index.html" class="back-link" id="backLink">&larr; Back</a>
+          <div class="back-links-row">
+            <a href="index.html" class="back-link" id="backLink">&larr; Back</a>
+            <span class="back-links-divider">&bull;</span>
+            <a href="index.html" class="back-link">Archive</a>
+          </div>
           <h1 class="page-title" id="chapterHeading">Chapter</h1>
           <div class="chapter-title-space chapter-title-space--detail" id="chapterTitleSpace"></div>
 
@@ -117,10 +121,11 @@
       // gets that formatting applied (or removed, if re-selecting text
       // that already has it). Multiple pens can be armed at once.
       const HIGHLIGHT_COLOR = '#00e5ff'; // sampled from the provided swatch
-      const ACTIVE_MODES = { highlight: false, underline: false, bold: false };
+      const ACTIVE_MODES = { highlight: false, underline: false, bold: false, clean: false };
       let highlightBtn = null;
       let underlineBtn = null;
       let boldBtn = null;
+      let cleanBtn = null;
 
       function toggleMode(mode, btn) {
         ACTIVE_MODES[mode] = !ACTIVE_MODES[mode];
@@ -163,12 +168,36 @@
         }
       }
 
+      function cleanFormattingOnRange(range) {
+        const frag = range.extractContents();
+        ['user-highlight', 'user-underline', 'user-bold'].forEach((cls) => {
+          frag.querySelectorAll(`.${cls}`).forEach((el) => {
+            const parent = el.parentNode;
+            while (el.firstChild) {
+              parent.insertBefore(el.firstChild, el);
+            }
+            parent.removeChild(el);
+          });
+        });
+        range.insertNode(frag);
+        content.normalize();
+      }
+
       function applyArmedFormatsToSelection() {
-        if (!ACTIVE_MODES.highlight && !ACTIVE_MODES.underline && !ACTIVE_MODES.bold) return;
+        if (!ACTIVE_MODES.highlight && !ACTIVE_MODES.underline && !ACTIVE_MODES.bold && !ACTIVE_MODES.clean) return;
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
         const range = sel.getRangeAt(0);
         if (!content.contains(range.commonAncestorContainer)) return;
+
+        // Clean is treated as its own tool — if it's armed, a selection
+        // just strips formatting rather than mixing with the other pens.
+        if (ACTIVE_MODES.clean) {
+          cleanFormattingOnRange(range);
+          sel.removeAllRanges();
+          saveProgress();
+          return;
+        }
 
         if (ACTIVE_MODES.highlight) {
           toggleFormatOnRange(range, 'user-highlight', (el) => {
@@ -269,6 +298,12 @@
           label: 'Bold text',
           onMount: (btn) => { boldBtn = btn; },
           onSelect: () => toggleMode('bold', boldBtn),
+        },
+        {
+          id: 'clean',
+          label: 'Clean',
+          onMount: (btn) => { cleanBtn = btn; },
+          onSelect: () => toggleMode('clean', cleanBtn),
         },
         {
           id: 'assessment-test',
