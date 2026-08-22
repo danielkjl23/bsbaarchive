@@ -23,6 +23,26 @@
           <div class="chapter-title-space chapter-title-space--detail" id="chapterTitleSpace"></div>
 
           <div class="chapter-content-wrap" id="chapterContentWrap">
+            <div class="history-controls" id="historyControls">
+              <button
+                class="history-btn"
+                id="undoBtn"
+                type="button"
+                aria-label="Undo last change"
+                disabled
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+              </button>
+              <button
+                class="history-btn"
+                id="redoBtn"
+                type="button"
+                aria-label="Redo last change"
+                disabled
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
+              </button>
+            </div>
             <button
               class="theme-toggle"
               id="themeToggle"
@@ -115,17 +135,21 @@
       });
 
       // ---- Highlight / underline / bold: selection-aware toolbar ----
-      // No "armed pen" mode and no separate Clean button. Instead:
       //   1) Selecting text updates the three buttons to reflect whether
-      //      the WHOLE selection already has that formatting (lit = yes).
-      //   2) Tapping a lit button strips that formatting from the
-      //      selection (this replaces "Clean", per format).
-      //   3) Tapping an unlit button applies that formatting to the
-      //      selection.
-      // On mobile, selecting text is already fragile, so tapping a
-      // toolbar button is set up not to steal/collapse the selection
-      // (mousedown/touchstart preventDefault + a cached last-range
-      // fallback in case the browser drops it anyway).
+      //      the selection already has that formatting (lit = yes). This
+      //      check ignores whitespace-only slack at the edges of the
+      //      selection (e.g. selecting "Clarify " with a trailing space
+      //      still counts as fully-formatted if "Clarify" itself is).
+      //   2) Tapping a lit button strips that formatting from exactly
+      //      the selected text.
+      //   3) Tapping an unlit button (selection has none, or only part
+      //      of it, formatted) applies that formatting across the WHOLE
+      //      selection — extending it to cover the previously-unformatted
+      //      part too, without double-wrapping the part that already had it.
+      // Selection boundaries are handled via Range.extractContents(),
+      // which splits any spans straddling the edges automatically, so
+      // this never nests/duplicates formatting the way exact-boundary
+      // matching used to.
       const HIGHLIGHT_COLOR = '#00e5ff'; // sampled from the provided swatch
       let highlightBtn = null;
       let underlineBtn = null;
@@ -136,46 +160,90 @@
         if (btn) btn.classList.toggle('is-active', active);
       }
 
-      function findFormatAncestor(node, className) {
-        let el = node.nodeType === 3 ? node.parentElement : node;
-        while (el && el !== content) {
-          if (el.classList && el.classList.contains(className)) return el;
-          el = el.parentElement;
-        }
-        return null;
+      // Same robust tap handling as widget.js's helper, defined locally
+      // so it works regardless of script load order (this inline script
+      // runs before widget.js loads). Fires once per tap — touchend on
+      // touch devices, click otherwise — without double-firing.
+      function addTapListener(el, handler) {
+        if (!el) return;
+        let firedByTouch = false;
+        el.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+        el.addEventListener(
+          'touchend',
+          (e) => {
+            e.preventDefault();
+            firedByTouch = true;
+            handler(e);
+            setTimeout(() => {
+              firedByTouch = false;
+            }, 500);
+          },
+          { passive: false }
+        );
+        el.addEventListener('click', (e) => {
+          if (firedByTouch) return;
+          handler(e);
+        });
       }
 
+      function isWhitespaceOnly(str) {
+        return !str || !str.trim();
+      }
+
+      function hasClassAncestorWithin(node, root, className) {
+        let el = node.parentNode;
+        while (el && el !== root) {
+          if (el.classList && el.classList.contains(className)) return true;
+          el = el.parentNode;
+        }
+        return false;
+      }
+
+      // True if every non-whitespace character in the range already has
+      // `className` somewhere in its ancestor chain. Whitespace-only text
+      // (stray spaces caught at the edge of a selection) is ignored, so
+      // a selection with a trailing/leading space still registers as
+      // "fully formatted" if the actual words are.
       function isRangeFullyFormatted(range, className) {
-        const startAncestor = findFormatAncestor(range.startContainer, className);
-        const endAncestor = findFormatAncestor(range.endContainer, className);
-        return !!(startAncestor && startAncestor === endAncestor);
+        const fragment = range.cloneContents();
+        const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT, null);
+        let hasRealText = false;
+        let node;
+        while ((node = walker.nextNode())) {
+          if (isWhitespaceOnly(node.data)) continue;
+          hasRealText = true;
+          if (!hasClassAncestorWithin(node, fragment, className)) return false;
+        }
+        return hasRealText;
+      }
+
+      function unwrapClassFrom(root, className) {
+        if (!root.querySelectorAll) return;
+        Array.from(root.querySelectorAll('.' + className)).forEach((el) => {
+          const parent = el.parentNode;
+          while (el.firstChild) parent.insertBefore(el.firstChild, el);
+          parent.removeChild(el);
+        });
       }
 
       function toggleFormatOnRange(range, className, styleFn) {
-        const startAncestor = findFormatAncestor(range.startContainer, className);
-        const endAncestor = findFormatAncestor(range.endContainer, className);
-
-        if (startAncestor && startAncestor === endAncestor) {
-          // Already has this formatting — remove it (the "clean" case).
-          const parent = startAncestor.parentNode;
-          while (startAncestor.firstChild) {
-            parent.insertBefore(startAncestor.firstChild, startAncestor);
-          }
-          parent.removeChild(startAncestor);
-          parent.normalize();
-        } else {
-          // Doesn't have it yet — apply it.
+        const alreadyFormatted = isRangeFullyFormatted(range, className);
+        const frag = range.extractContents();
+        // Always strip any existing spans of this class from the
+        // extracted slice first — this both handles the "remove" case
+        // and prevents double-nesting when "applying" over a selection
+        // that's only partially formatted.
+        unwrapClassFrom(frag, className);
+        if (!alreadyFormatted) {
           const wrapper = document.createElement('span');
           wrapper.className = className;
           styleFn(wrapper);
-          try {
-            range.surroundContents(wrapper);
-          } catch (err) {
-            const frag = range.extractContents();
-            wrapper.appendChild(frag);
-            range.insertNode(wrapper);
-          }
+          wrapper.appendChild(frag);
+          range.insertNode(wrapper);
+        } else {
+          range.insertNode(frag);
         }
+        content.normalize();
       }
 
       function getContentSelectionRange() {
@@ -201,24 +269,73 @@
       }
 
       document.addEventListener('selectionchange', refreshToolbarFromSelection);
+      // selectionchange can lag or misfire on mobile right at the moment
+      // a finger lifts — re-check explicitly on touchend as a backstop.
+      content.addEventListener('touchend', () => setTimeout(refreshToolbarFromSelection, 0));
+
+      // ---- Undo / redo history for content edits ----
+      const undoBtn = document.getElementById('undoBtn');
+      const redoBtn = document.getElementById('redoBtn');
+      const HISTORY_LIMIT = 50;
+      let undoStack = [];
+      let redoStack = [];
+      let restoringHistory = false;
+
+      function updateHistoryButtons() {
+        if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+        if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+      }
+
+      function pushHistory() {
+        if (restoringHistory) return;
+        undoStack.push(content.innerHTML);
+        if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+        redoStack = [];
+        updateHistoryButtons();
+      }
+
+      function restoreSnapshot(html) {
+        restoringHistory = true;
+        content.innerHTML = html;
+        restoringHistory = false;
+        saveProgress();
+        updateHistoryButtons();
+        refreshToolbarFromSelection();
+      }
+
+      function undoChange() {
+        if (!undoStack.length) return;
+        redoStack.push(content.innerHTML);
+        restoreSnapshot(undoStack.pop());
+      }
+
+      function redoChange() {
+        if (!redoStack.length) return;
+        undoStack.push(content.innerHTML);
+        restoreSnapshot(redoStack.pop());
+      }
+
+      addTapListener(undoBtn, undoChange);
+      addTapListener(redoBtn, redoChange);
 
       function applyFormatToggle(className, styleFn) {
         let range = getContentSelectionRange();
         if (!range && lastSelectionRange) range = lastSelectionRange.cloneRange();
         if (!range) return;
 
+        pushHistory();
         toggleFormatOnRange(range, className, styleFn);
         lastSelectionRange = null;
         saveProgress();
         refreshToolbarFromSelection();
+
+        const sel = window.getSelection();
+        if (sel) sel.removeAllRanges();
       }
 
       function wireToolbarButton(btn, className, styleFn) {
         if (!btn) return;
-        // Belt-and-suspenders on top of widget.js's own mousedown guard —
-        // also cover touchstart so mobile taps don't collapse the selection.
-        btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-        btn.addEventListener('click', () => applyFormatToggle(className, styleFn));
+        addTapListener(btn, () => applyFormatToggle(className, styleFn));
       }
 
       // ---- Download this chapter as a Word (.doc) file ----
@@ -248,10 +365,19 @@
   body {
     font-family: "Times New Roman", Times, serif;
     font-size: 8pt;
+    text-align: justify;
   }
-  h2 {
+  h2, h3 {
     font-family: "Times New Roman", Times, serif;
-    font-size: 12pt;
+    font-size: 10pt;
+    text-align: left;
+  }
+  p {
+    text-align: justify;
+    margin: 0 0 8pt;
+  }
+  li {
+    text-align: justify;
   }
   .doc-columns {
     mso-columns-count: 2;
