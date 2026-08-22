@@ -236,6 +236,27 @@ body {
   color: #fff;
 }
 
+/* Row of back-links on chapter pages: the module back-link plus the
+   Archive shortcut straight to the front page. */
+.back-links-row {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  z-index: 5;
+}
+
+.back-links-row .back-link {
+  position: static;
+}
+
+.back-links-divider {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.8rem;
+}
+
 .page-subtitle {
   color: rgba(255, 255, 255, 0.75);
   font-size: 1.05rem;
