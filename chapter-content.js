@@ -9,7 +9,7 @@
 // indent, drop cap on the opening letter). Example:
 //   'sales-1': '<p>First paragraph here...</p><p>Second paragraph...</p>',
 window.CHAPTER_CONTENT = {
-  'sales-1': '',
+  'sales-1': 'DANIEL GWAPO',
   'sales-2': '',
   'sales-3': '',
   'sales-4': '',
