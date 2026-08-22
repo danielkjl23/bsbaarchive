@@ -18,18 +18,32 @@
           <p class="chapter-meta" id="chapterMeta"></p>
           <h1 class="page-title" id="chapterHeading">Chapter</h1>
 
-          <div class="chapter-content-wrap">
+          <div class="chapter-content-wrap" id="chapterContentWrap">
+            <button
+              class="theme-toggle"
+              id="themeToggle"
+              type="button"
+              aria-label="Switch between light and dark mode"
+              aria-pressed="false"
+            >
+              <span class="theme-toggle-track">
+                <span class="theme-toggle-knob">
+                  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+                  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"></path></svg>
+                </span>
+              </span>
+            </button>
             <div
               class="chapter-content"
               id="chapterContent"
-              contenteditable="true"
-              data-placeholder="Type or paste this chapter's content here..."
+              data-placeholder="No content yet — this chapter's text is added directly in chapter-content.js."
             ></div>
           </div>
         </div>
       </div>
     </div>
 
+    <script src="chapter-content.js"></script>
     <script>
       // ---- Read module/chapter/color from the URL ----
       const params = new URLSearchParams(window.location.search);
@@ -48,31 +62,99 @@
       backLink.href = moduleKey ? `${moduleKey}.html` : 'index.html';
       document.title = `Chapter ${num} \u2014 ${moduleTitle}`;
 
-      // ---- Text formatting ----
-      const HIGHLIGHT_COLOR = '#00e5ff'; // sampled from the provided swatch
+      // ---- Load this chapter's read-only content from chapter-content.js ----
+      // The page itself never lets anyone add, type, or delete this text —
+      // it's only ever changed by editing chapter-content.js directly.
       const content = document.getElementById('chapterContent');
+      const contentKey = `${moduleKey}-${num}`;
+      const savedHtml = (window.CHAPTER_CONTENT && window.CHAPTER_CONTENT[contentKey]) || '';
+      content.innerHTML = savedHtml;
 
-      function applyBold() {
-        content.focus();
-        document.execCommand('bold');
+      // ---- Light / dark mode toggle for the content box ----
+      const themeToggle = document.getElementById('themeToggle');
+      const contentWrap = document.getElementById('chapterContentWrap');
+      themeToggle.addEventListener('click', () => {
+        const isLight = contentWrap.classList.toggle('is-light');
+        themeToggle.setAttribute('aria-pressed', String(isLight));
+      });
+
+      // ---- Text formatting (highlight / underline / bold) ----
+      // Selecting existing text and wrapping/unwrapping it in a styled
+      // <span> — this only changes appearance, never the underlying text,
+      // so nothing can be typed in or deleted.
+      const HIGHLIGHT_COLOR = '#00e5ff'; // sampled from the provided swatch
+
+      function findFormatAncestor(node, className) {
+        let el = node.nodeType === 3 ? node.parentElement : node;
+        while (el && el !== content) {
+          if (el.classList && el.classList.contains(className)) return el;
+          el = el.parentElement;
+        }
+        return null;
       }
 
-      function applyUnderline() {
-        content.focus();
-        document.execCommand('underline');
+      // Wraps the current selection in a styled span, or — if the
+      // selection is already wrapped in that exact formatting — removes
+      // it. This is what makes pressing the same button twice toggle
+      // the formatting back off.
+      function toggleFormat(className, styleFn) {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+        const range = sel.getRangeAt(0);
+        if (!content.contains(range.commonAncestorContainer)) return;
+
+        const startAncestor = findFormatAncestor(range.startContainer, className);
+        const endAncestor = findFormatAncestor(range.endContainer, className);
+
+        if (startAncestor && startAncestor === endAncestor) {
+          // Already formatted — unwrap it.
+          const parent = startAncestor.parentNode;
+          while (startAncestor.firstChild) {
+            parent.insertBefore(startAncestor.firstChild, startAncestor);
+          }
+          parent.removeChild(startAncestor);
+          parent.normalize();
+        } else {
+          // Not formatted yet — wrap it.
+          const wrapper = document.createElement('span');
+          wrapper.className = className;
+          styleFn(wrapper);
+          try {
+            range.surroundContents(wrapper);
+          } catch (err) {
+            // Selection crosses multiple elements — extract then wrap.
+            const frag = range.extractContents();
+            wrapper.appendChild(frag);
+            range.insertNode(wrapper);
+          }
+        }
+        sel.removeAllRanges();
       }
 
       function applyHighlight() {
-        content.focus();
-        const ok = document.execCommand('hiliteColor', false, HIGHLIGHT_COLOR);
-        if (!ok) {
-          document.execCommand('backColor', false, HIGHLIGHT_COLOR);
-        }
+        toggleFormat('user-highlight', (el) => {
+          el.style.backgroundColor = HIGHLIGHT_COLOR;
+          el.style.color = '#0f172a';
+        });
+      }
+
+      function applyUnderline() {
+        toggleFormat('user-underline', (el) => {
+          el.style.textDecoration = 'underline';
+        });
+      }
+
+      function applyBold() {
+        toggleFormat('user-bold', (el) => {
+          el.style.fontWeight = '700';
+        });
       }
 
       // ---- Download this chapter as a Word (.doc) file ----
       // Uses Word's HTML import format so styling (bold/underline/highlight),
       // the Times New Roman 8pt font, and the 2-column layout carry over.
+      // Note: highlight/underline/bold only exist in this browser session —
+      // download captures whatever's applied right now.
       function downloadChapterAsWord() {
         const bodyHtml = content.innerHTML.trim() || '<p></p>';
         const doc = `<!doctype html>
@@ -129,14 +211,6 @@
       // ---- FAB options for this page ----
       window.FAB_OPTIONS = [
         {
-          id: 'assessment-test',
-          label: 'Assessment test',
-          onSelect: () => {
-            // Placeholder for now — tell me what this should do when ready.
-            console.log('Assessment test clicked:', moduleTitle, 'Chapter', num);
-          },
-        },
-        {
           id: 'highlight',
           label: 'Highlight text',
           onSelect: applyHighlight,
@@ -150,6 +224,14 @@
           id: 'bold',
           label: 'Bold text',
           onSelect: applyBold,
+        },
+        {
+          id: 'assessment-test',
+          label: 'Assessment test',
+          onSelect: () => {
+            // Placeholder for now — tell me what this should do when ready.
+            console.log('Assessment test clicked:', moduleTitle, 'Chapter', num);
+          },
         },
         {
           id: 'download',
