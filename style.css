@@ -433,6 +433,23 @@ body {
   transform: translateX(-2px);
 }
 
+/* Armed/active state (highlight, underline, bold "pens" toggled on) —
+   stays glowing until pressed again, independent of the panel open/closed. */
+.fab-option.is-active {
+  border-color: var(--accent, #38bdf8);
+  background: rgba(255, 255, 255, 0.08);
+  animation: fabPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes fabPulse {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--accent, #38bdf8), 0 0 10px var(--accent, #38bdf8);
+  }
+  50% {
+    box-shadow: 0 0 8px var(--accent, #38bdf8), 0 0 20px var(--accent, #38bdf8);
+  }
+}
+
 @media (max-width: 640px) {
   .fab-wrap {
     right: 1rem;
@@ -484,6 +501,39 @@ body {
 .chapter-content:empty::before {
   content: attr(data-placeholder);
   color: rgba(255, 255, 255, 0.35);
+}
+
+/* Book-style typesetting for whatever text is placed inside — just
+   wrap each paragraph in <p> tags in chapter-content.js and this
+   handles the rest (justified, indented, drop cap on the opener). */
+.chapter-content {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+
+.chapter-content p {
+  margin: 0 0 1.1em;
+  text-align: justify;
+  text-indent: 1.6em;
+}
+
+.chapter-content p:first-of-type {
+  text-indent: 0;
+}
+
+.chapter-content p:first-of-type::first-letter {
+  float: left;
+  font-size: 2.7em;
+  font-weight: 700;
+  line-height: 0.85;
+  padding-right: 0.09em;
+  padding-top: 0.04em;
+}
+
+/* Blank space under the big "Chapter N" heading on chapter detail
+   pages, left empty for the title to be added manually. */
+.chapter-title-space--detail {
+  min-height: 2.25rem;
+  margin-bottom: 0.5rem;
 }
 
 /* Light mode: white box, black text */
