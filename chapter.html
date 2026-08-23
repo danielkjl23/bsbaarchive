@@ -212,8 +212,28 @@
         chapterToolbar.style.right = `${Math.round(window.innerWidth - rect.left + TOOLBAR_EDGE_GAP)}px`;
       }
 
+      // Browser/pinch zoom fires many 'resize' events in quick succession
+      // while the zoom level is changing. Without throttling, each one
+      // ran positionToolbarToContent() synchronously — including a
+      // getBoundingClientRect() call, which forces a layout pass — right
+      // on top of the browser's own (already expensive, see the
+      // .aura-layer-* comment in style.css) repaint of the page during
+      // that same zoom. Collapsing to at most one run per animation
+      // frame removes that pile-up without changing the behavior.
+      function rafThrottle(fn) {
+        let scheduled = false;
+        return function throttled(...args) {
+          if (scheduled) return;
+          scheduled = true;
+          requestAnimationFrame(() => {
+            scheduled = false;
+            fn.apply(this, args);
+          });
+        };
+      }
+
       positionToolbarToContent();
-      window.addEventListener('resize', positionToolbarToContent);
+      window.addEventListener('resize', rafThrottle(positionToolbarToContent));
       window.addEventListener('load', positionToolbarToContent);
 
       // ---- Highlight / underline / bold: selection-aware toolbar ----
