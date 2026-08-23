@@ -82,6 +82,7 @@ function initFab() {
   wrap.appendChild(optionsList);
   wrap.appendChild(icon);
   document.body.appendChild(wrap);
+  positionFabToContent(wrap);
 
   addTapListener(icon, () => {
     const isOpen = wrap.classList.toggle('is-open');
@@ -115,3 +116,43 @@ function initFab() {
 }
 
 document.addEventListener('DOMContentLoaded', initFab);
+
+// ---- Desktop only: position the FAB so it hugs the content
+// container's right edge instead of sitting a fixed distance from
+// the browser window's edge (the container's width varies by page
+// and viewport, so this is measured rather than hardcoded). Mobile
+// is left completely alone — it keeps the existing right: 1.75rem
+// from style.css, unchanged. ----
+function positionFabToContent(wrap) {
+  const desktopQuery = window.matchMedia('(min-width: 601px)');
+  const EDGE_GAP = 16; // px, ~1rem gap between the FAB and the content edge
+  const CONTAINER_SELECTORS = ['#chapterContentWrap', '.cards'];
+
+  function update() {
+    if (!desktopQuery.matches) {
+      wrap.style.left = '';
+      wrap.style.right = '';
+      return;
+    }
+
+    let containerEl = null;
+    for (let i = 0; i < CONTAINER_SELECTORS.length; i++) {
+      containerEl = document.querySelector(CONTAINER_SELECTORS[i]);
+      if (containerEl) break;
+    }
+
+    if (!containerEl) {
+      wrap.style.left = '';
+      wrap.style.right = '';
+      return;
+    }
+
+    const rect = containerEl.getBoundingClientRect();
+    wrap.style.right = 'auto';
+    wrap.style.left = `${Math.round(rect.right + EDGE_GAP)}px`;
+  }
+
+  update();
+  window.addEventListener('resize', update);
+  window.addEventListener('load', update);
+}
