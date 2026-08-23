@@ -173,6 +173,7 @@
       function setToolbarStuck(stuck) {
         if (!chapterToolbar) return;
         chapterToolbar.classList.toggle('is-stuck', stuck);
+        positionToolbarToContent();
       }
 
       if (toolbarSentinel && 'IntersectionObserver' in window) {
@@ -183,17 +184,21 @@
         stickyObserver.observe(toolbarSentinel);
       }
 
-      // ---- Desktop only: once the toolbar is stuck (floating as a
-      // vertical dock), hug it to the actual left edge of the content
-      // container instead of a fixed distance from the browser
+      // ---- Desktop only: once the toolbar is actually stuck (floating
+      // as a vertical dock), hug it to the actual left edge of the
+      // content container instead of a fixed distance from the browser
       // window's edge — measured, since the container's width varies
-      // by viewport. Mobile keeps its own layout entirely untouched. ----
+      // by viewport. While it's NOT stuck (normal in-flow position at
+      // the top of the page), this leaves it alone entirely — applying
+      // any offset then would shove it out of its normal spot, which is
+      // exactly what was making it disappear from the top of the page.
+      // Mobile keeps its own layout entirely untouched either way. ----
       const toolbarDesktopQuery = window.matchMedia('(min-width: 601px)');
       const TOOLBAR_EDGE_GAP = 16; // px, ~1rem gap between the dock and the content edge
 
       function positionToolbarToContent() {
         if (!chapterToolbar || !contentWrap) return;
-        if (!toolbarDesktopQuery.matches) {
+        if (!toolbarDesktopQuery.matches || !chapterToolbar.classList.contains('is-stuck')) {
           chapterToolbar.style.left = '';
           chapterToolbar.style.right = '';
           return;
