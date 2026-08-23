@@ -164,38 +164,58 @@ body {
   overflow: hidden;
   min-height: 100vh;
 }
+/* These four layers are the page's background glow. They used to be
+   position: absolute inset: 0 relative to .aura-bg — which stretches
+   to the height of ALL the page's content. On a long chapter that
+   could be several screens tall, so the browser was blurring (at up
+   to 260px radius) a canvas many times bigger than what's ever
+   visible at once. That was the main source of scroll lag on chapter
+   pages: bigger blurred canvas = more GPU work to hold/composite it,
+   and the cost scaled with how long the chapter was.
+
+   Fixed positioning caps every layer to exactly one viewport's worth
+   of pixels, always, regardless of page length — the blur cost is now
+   constant instead of growing with content. As a bonus this also
+   reads as a fixed backdrop that stays put while you scroll, rather
+   than a texture that travels with the page. z-index: 0 keeps them
+   behind .aura-content (z-index: 1) now that they're no longer in
+   the normal DOM stacking flow relative to it. */
 .aura-layer-1 {
-  position: absolute; inset: 0;
+  position: fixed; inset: 0;
+  z-index: 0;
   background: radial-gradient(circle at 30% 35%, rgba(234,88,12,0.6) 0%, transparent 45%);
   mix-blend-mode: screen;
-  filter: blur(162px);
+  filter: blur(120px);
   transform: translateZ(0);
   will-change: transform;
   pointer-events: none;
 }
 .aura-layer-2 {
-  position: absolute; inset: 0;
+  position: fixed; inset: 0;
+  z-index: 0;
   background: radial-gradient(circle at 70% 30%, rgba(251,146,60,0.5) 0%, transparent 40%);
   mix-blend-mode: screen;
-  filter: blur(180px);
+  filter: blur(130px);
   transform: translateZ(0);
   will-change: transform;
   pointer-events: none;
 }
 .aura-layer-3 {
-  position: absolute; inset: 0;
+  position: fixed; inset: 0;
+  z-index: 0;
   background: radial-gradient(circle at 50% 75%, rgba(153,27,27,0.4) 0%, transparent 50%);
   mix-blend-mode: multiply;
-  filter: blur(260px);
+  filter: blur(160px);
   transform: translateZ(0);
   will-change: transform;
   pointer-events: none;
 }
 .aura-layer-4 {
-  position: absolute; inset: 0;
+  position: fixed; inset: 0;
+  z-index: 0;
   background: radial-gradient(circle at 20% 80%, rgba(251,191,36,0.2) 0%, transparent 35%);
   mix-blend-mode: overlay;
-  filter: blur(198px);
+  filter: blur(140px);
   transform: translateZ(0);
   will-change: transform;
   pointer-events: none;
