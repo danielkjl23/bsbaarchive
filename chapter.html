@@ -15,14 +15,12 @@
       <div class="aura-content">
         <div class="page page--top">
           <div class="back-links-row">
-            <a href="index.html" class="back-link" id="backLink">&larr; Back</a>
-            <span class="back-links-divider">&bull;</span>
-            <a href="index.html" class="back-link back-link--icon" aria-label="Back to Archive">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 1.1rem; height: 1.1rem;">
-              <path d="M4 10.5 12 3l8 7.5"></path>
-            <path d="M6 9.5V19a2 2 0 0 0 2 2h2.5a1.5 1.5 0 0 0 1.5-1.5v-2a2 2 0 0 1 4 0v2a1.5 1.5 0 0 0 1.5 1.5H20a2 2 0 0 0 2-2V9.5" transform="translate(-2 0)"></path>
-          </svg>
-        </a>
+            <a href="index.html" class="back-icon-btn" id="backLink" aria-label="Back">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"></path></svg>
+            </a>
+            <a href="index.html" class="back-icon-btn" aria-label="Archive">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            </a>
           </div>
           <h1 class="page-title" id="chapterHeading">Chapter</h1>
           <div class="chapter-title-space chapter-title-space--detail" id="chapterTitleSpace"></div>
@@ -97,7 +95,8 @@
 
       document.getElementById('chapterHeading').textContent = `Chapter ${num}`;
       const backLink = document.getElementById('backLink');
-      backLink.textContent = `\u2190 Back to ${moduleTitle}`;
+      backLink.setAttribute('aria-label', `Back to ${moduleTitle}`);
+      backLink.title = `Back to ${moduleTitle}`;
       backLink.href = moduleKey ? `${moduleKey}.html` : 'index.html';
       document.title = `Chapter ${num} \u2014 ${moduleTitle}`;
 
