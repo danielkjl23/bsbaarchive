@@ -468,30 +468,33 @@ body {
    now hugs the content container's edge instead of the screen's edge
    (actual positioning is computed by widget.js, since the content
    container's width varies). Because it sits close to the content
-   with no spare room to its left, opening it works differently here
-   than on mobile: the "<" icon itself slides further right, and the
-   option stack appears anchored at the icon's original resting spot
-   — taking over that position rather than the icon staying put and
-   the options spilling out further to the left of it. */
+   with no spare room on its content-facing side, the icon and the
+   option stack swap visual order here — the icon stays anchored
+   right next to the content, and the options reveal to its OUTER
+   side (away from the content, into the empty margin) instead of
+   spilling toward the content and overlapping the text. */
 @media (min-width: 601px) {
-  .fab-wrap.is-open .fab-icon {
-    transform: translateX(3.25rem);
+  .fab-icon {
+    order: 1;
   }
 
   .fab-options {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%) translateX(10px);
+    order: 2;
+    transform: translateX(-10px);
   }
 
   .fab-wrap.is-open .fab-options {
-    transform: translateY(-50%) translateX(0);
+    transform: translateX(0);
+  }
+
+  .fab-options::before {
+    right: auto;
+    left: -0.85rem;
   }
 
   .fab-options::after {
-    right: -3.35rem;
-    width: 2.5rem;
+    right: auto;
+    left: -1.7rem;
   }
 }
 
@@ -791,8 +794,13 @@ body {
   cursor: not-allowed;
 }
 
+/* This gives the buttons their own solid light background rather
+   than a near-transparent tint — that near-transparent version relied
+   on the "is-stuck" pill's white backdrop for contrast, so the icons
+   were invisible (dark-on-dark) whenever the toolbar sat normally at
+   the top of the page, on both mobile and desktop. */
 .chapter-content-wrap.is-light .history-btn {
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.15);
   color: #0f172a;
 }
