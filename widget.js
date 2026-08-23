@@ -152,7 +152,23 @@ function positionFabToContent(wrap) {
     wrap.style.left = `${Math.round(rect.right + EDGE_GAP)}px`;
   }
 
+  // Same fix as chapter.html's toolbar positioning: throttle the
+  // resize-driven recalculation to once per animation frame so a zoom
+  // gesture (which fires many 'resize' events back to back) doesn't
+  // stack up a forced layout read on every single one of them.
+  function rafThrottle(fn) {
+    let scheduled = false;
+    return (...args) => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        fn(...args);
+      });
+    };
+  }
+
   update();
-  window.addEventListener('resize', update);
+  window.addEventListener('resize', rafThrottle(update));
   window.addEventListener('load', update);
 }
