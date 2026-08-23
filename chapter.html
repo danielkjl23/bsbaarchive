@@ -266,10 +266,25 @@
         return !str || !str.trim();
       }
 
+      // Bold is special: chapter-content.js's own text already uses real
+      // <strong> tags for bold words (that's the source content, not
+      // something the toolbar created) — so "is this bold?" has to
+      // recognize <strong>/<b> as bold too, not just the .user-bold span
+      // the toolbar wraps around text you bold yourself. Highlight and
+      // underline have no such native-tag equivalent, so they only ever
+      // match their own class.
+      function elementMatchesFormat(el, className) {
+        if (el.classList && el.classList.contains(className)) return true;
+        if (className === 'user-bold' && (el.tagName === 'STRONG' || el.tagName === 'B')) {
+          return true;
+        }
+        return false;
+      }
+
       function hasClassAncestorWithin(node, root, className) {
         let el = node.parentNode;
         while (el && el !== root) {
-          if (el.classList && el.classList.contains(className)) return true;
+          if (elementMatchesFormat(el, className)) return true;
           el = el.parentNode;
         }
         return false;
@@ -332,7 +347,12 @@
 
       function unwrapClassFrom(root, className) {
         if (!root.querySelectorAll) return;
-        Array.from(root.querySelectorAll('.' + className)).forEach((el) => {
+        // Same native-tag exception as elementMatchesFormat above: turning
+        // bold off has to remove an actual <strong>/<b> tag if that's what
+        // made the text bold, not just look for a .user-bold span that was
+        // never there to begin with.
+        const selector = className === 'user-bold' ? `.${className}, strong, b` : `.${className}`;
+        Array.from(root.querySelectorAll(selector)).forEach((el) => {
           unwrapElement(el);
         });
       }
