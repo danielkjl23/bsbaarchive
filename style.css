@@ -464,6 +464,37 @@ body {
   box-shadow: 0 0 8px var(--accent, #38bdf8);
 }
 
+/* Desktop only (mobile keeps the layout above, untouched): the FAB
+   now hugs the content container's edge instead of the screen's edge
+   (actual positioning is computed by widget.js, since the content
+   container's width varies). Because it sits close to the content
+   with no spare room to its left, opening it works differently here
+   than on mobile: the "<" icon itself slides further right, and the
+   option stack appears anchored at the icon's original resting spot
+   — taking over that position rather than the icon staying put and
+   the options spilling out further to the left of it. */
+@media (min-width: 601px) {
+  .fab-wrap.is-open .fab-icon {
+    transform: translateX(3.25rem);
+  }
+
+  .fab-options {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%) translateX(10px);
+  }
+
+  .fab-wrap.is-open .fab-options {
+    transform: translateY(-50%) translateX(0);
+  }
+
+  .fab-options::after {
+    right: -3.35rem;
+    width: 2.5rem;
+  }
+}
+
 .fab-option {
   position: relative;
   padding: 0.65rem 1rem;
