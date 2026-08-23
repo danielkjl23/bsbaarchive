@@ -154,15 +154,19 @@
         themeToggle.setAttribute('aria-pressed', String(isLight));
       });
 
-      // ---- Sticky toolbar: normally sits in flow above the content.
-      // Once scrolling carries it to the top of the screen (native
-      // CSS position: sticky handles the "don't move until you hit
-      // that limit" part), it gets the "is-stuck" class:
-      //   - Desktop: CSS switches it to a fixed vertical dock in the
+      // ---- Toolbar: normally sits in flow above the content. Once
+      // scrolling carries it to the top of the screen, an
+      // IntersectionObserver watching a 1px sentinel above it flips
+      // on the "is-stuck" class, which CSS uses to switch it to
+      // position: fixed at that exact point (JS-driven rather than
+      // native CSS position: sticky, since an overflow: hidden
+      // ancestor — .aura-bg, used for the background glow — silently
+      // breaks position: sticky on mobile Safari/some Android):
+      //   - Desktop: CSS docks it as a fixed vertical stack in the
       //     left corner of the viewport (see style.css).
-      //   - Mobile: it just pins to the top in its existing horizontal
-      //     layout — no repositioning needed, so no JS beyond the
-      //     class toggle itself. ----
+      //   - Mobile: CSS pins it to the top at the same left/right
+      //     position it already had — no repositioning needed beyond
+      //     the class toggle itself. ----
       const chapterToolbar = document.getElementById('chapterToolbar');
       const toolbarSentinel = document.getElementById('toolbarSentinel');
 
