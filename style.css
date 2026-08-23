@@ -901,3 +901,7 @@ body {
 .chapter-content-wrap.is-light .theme-toggle-knob .icon-moon {
   display: none;
 }
+.back-link--icon {
+  display: inline-flex;
+  align-items: center;
+}
