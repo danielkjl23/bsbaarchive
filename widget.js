@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', initFab);
 function positionFabToContent(wrap) {
   const desktopQuery = window.matchMedia('(min-width: 601px)');
   const EDGE_GAP = 16; // px, ~1rem gap between the FAB and the content edge
-  const CONTAINER_SELECTORS = ['#chapterContentWrap', '.cards'];
+  const CONTAINER_SELECTORS = ['#chapterContentWrap', '.chapter-list', '.cards'];
 
   function update() {
     if (!desktopQuery.matches) {
