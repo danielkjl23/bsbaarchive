@@ -183,6 +183,30 @@
         stickyObserver.observe(toolbarSentinel);
       }
 
+      // ---- Desktop only: once the toolbar is stuck (floating as a
+      // vertical dock), hug it to the actual left edge of the content
+      // container instead of a fixed distance from the browser
+      // window's edge — measured, since the container's width varies
+      // by viewport. Mobile keeps its own layout entirely untouched. ----
+      const toolbarDesktopQuery = window.matchMedia('(min-width: 601px)');
+      const TOOLBAR_EDGE_GAP = 16; // px, ~1rem gap between the dock and the content edge
+
+      function positionToolbarToContent() {
+        if (!chapterToolbar || !contentWrap) return;
+        if (!toolbarDesktopQuery.matches) {
+          chapterToolbar.style.left = '';
+          chapterToolbar.style.right = '';
+          return;
+        }
+        const rect = contentWrap.getBoundingClientRect();
+        chapterToolbar.style.left = 'auto';
+        chapterToolbar.style.right = `${Math.round(window.innerWidth - rect.left + TOOLBAR_EDGE_GAP)}px`;
+      }
+
+      positionToolbarToContent();
+      window.addEventListener('resize', positionToolbarToContent);
+      window.addEventListener('load', positionToolbarToContent);
+
       // ---- Highlight / underline / bold: selection-aware toolbar ----
       //   1) Selecting text updates the three buttons to reflect whether
       //      the selection has that formatting anywhere in it (lit = yes,
