@@ -70,9 +70,21 @@
             console.log('Select chapter assessment clicked');
           },
         },
+        {
+          id: 'select-chapter-download',
+          label: 'Select Chapter Download',
+          onSelect: () => {
+            const module = document.body.dataset.module || '';
+            const moduleTitle = document.body.dataset.moduleTitle || '';
+            window.openChapterDownloadPicker(module, moduleTitle);
+          },
+        },
       ];
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="chapter-content.js"></script>
+    <script src="docx-export.js"></script>
+    <script src="chapter-picker.js"></script>
     <script src="chapter-nav.js"></script>
     <script src="widget.js"></script>
   </body>
